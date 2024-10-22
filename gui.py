@@ -1,8 +1,9 @@
-from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, QTabWidget
+from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, \
+    QTabWidget, QDialog, QDialogButtonBox
 from PyQt6.QtCore import Qt, QDate, QTime
 from PyQt6.QtGui import QFont
 
-from calendar import get_tasks_from_calendar
+from calendar_functions import get_tasks_from_calendar
 
 
 # OKNO STARTOWE
@@ -120,11 +121,20 @@ class GetDataTab(QWidget):
         if self.begin_date.date() > self.finish_date.date() or \
                 (self.begin_date.date() == self.finish_date.date() and
                  self.begin_time.date() >= self.finish_time.date()):
-            print("error")                      # jeśli podany jest zły przedział czasowy - komunikat o błędzie
+            dlg = DialogWindow("Uwaga!", "Wprowadź poprawny zakres czasu!")
+            dlg.exec()      # jeśli podany jest zły przedział czasowy - komunikat o błędzie
 
         else:
             self.tasks_obtained = get_tasks_from_calendar()
             # w przeciwnym wypadku wywoływanie właściwej funkcji pobierającej dane
+            if self.tasks_obtained:     # jeśli dane się pobrały - pokaż info
+                dlg = DialogWindow("Sukces!", "Lista zadań została pobrana!")
+                dlg.exec()
+            else:
+                dlg = DialogWindow("Niepowodzenie!", "Nie udało się pobrać listy zadań! Sprawdź swój dostęp do "
+                                                     "kalendarza lub dodaj zadania manualnie w zakładce "
+                                                     "'Dodaj zadania'.")
+                dlg.exec()
 
 
 class AddDataTab(QWidget):
@@ -150,3 +160,29 @@ class AddDataTab(QWidget):
 
         self.label_2 = QLabel("Dodaj zadania do aktualnej listy")
         self.layout_2.addWidget(self.label_2)
+
+
+# OKNO DIALOGOWE
+
+class DialogWindow(QDialog):
+
+    def __init__(self, title, message):
+
+        super(QDialog, self).__init__()
+
+        self.title = title
+        self.message = message
+
+        self.setWindowTitle(title)
+
+        self.ok_button = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+        self.ok_button.accepted.connect(self.accept)
+
+        self.txt = QLabel(message)
+
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.txt)
+        self.layout.addWidget(self.ok_button)
+        self.setLayout(self.layout)
+
+
