@@ -60,26 +60,26 @@ class GetDataTab(QWidget):
         self.begin_date.setDate(QDate.currentDate())  # domyślnie dziś
         self.begin_date.setFixedSize(100, 30)
 
-        self.finish_date = QDateEdit()
-        self.finish_date.setCalendarPopup(True)
-        self.finish_date.setDate(QDate.currentDate().addDays(14))  # domyślnie koniec po 2 tygodniach
-        self.finish_date.setFixedSize(100, 30)
+        self.end_date = QDateEdit()
+        self.end_date.setCalendarPopup(True)
+        self.end_date.setDate(QDate.currentDate().addDays(14))  # domyślnie koniec po 2 tygodniach
+        self.end_date.setFixedSize(100, 30)
 
         # wybór godzin
         self.begin_time = QTimeEdit()
         self.begin_time.setTime(QTime.currentTime())
         self.begin_time.setFixedSize(80, 30)
 
-        self.finish_time = QTimeEdit()
-        self.finish_time.setTime(QTime.currentTime())
-        self.finish_time.setFixedSize(80, 30)
+        self.end_time = QTimeEdit()
+        self.end_time.setTime(QTime.currentTime())
+        self.end_time.setFixedSize(80, 30)
 
         # etykiety
         self.begin_label = QLabel('Początek harmonogramu:')
         self.begin_label.setFixedSize(200, 20)
 
-        self.finish_label = QLabel('Koniec harmonogramu:')
-        self.finish_label.setFixedSize(200, 20)
+        self.end_label = QLabel('Koniec harmonogramu:')
+        self.end_label.setFixedSize(200, 20)
 
         # layout na informacje o dacie i godzinie
         self.full_date_time_layout = QVBoxLayout()
@@ -95,18 +95,18 @@ class GetDataTab(QWidget):
         self.begin_date_time_layout.addWidget(self.begin_time)
 
         # 3. - etykieta
-        self.finish_label_layout = QHBoxLayout()
-        self.finish_label_layout.addWidget(self.finish_label)
+        self.end_label_layout = QHBoxLayout()
+        self.end_label_layout.addWidget(self.end_label)
 
         # 4. - data i godzina końca
-        self.finish_date_time_layout = QHBoxLayout()
-        self.finish_date_time_layout.addWidget(self.finish_date)
-        self.finish_date_time_layout.addWidget(self.finish_time)
+        self.end_date_time_layout = QHBoxLayout()
+        self.end_date_time_layout.addWidget(self.end_date)
+        self.end_date_time_layout.addWidget(self.end_time)
 
         self.full_date_time_layout.addLayout(self.begin_label_layout)
         self.full_date_time_layout.addLayout(self.begin_date_time_layout)
-        self.full_date_time_layout.addLayout(self.finish_label_layout)
-        self.full_date_time_layout.addLayout(self.finish_date_time_layout)
+        self.full_date_time_layout.addLayout(self.end_label_layout)
+        self.full_date_time_layout.addLayout(self.end_date_time_layout)
         self.full_date_time_layout.setContentsMargins(0, 320, 0, 320)
 
         # layout główny
@@ -118,14 +118,15 @@ class GetDataTab(QWidget):
     # funkcja pobierająca dane
     def get_data(self):
 
-        if self.begin_date.date() > self.finish_date.date() or \
-                (self.begin_date.date() == self.finish_date.date() and
-                 self.begin_time.date() >= self.finish_time.date()):
+        if self.begin_date.date() > self.end_date.date() or \
+                (self.begin_date.date() == self.end_date.date() and
+                 self.begin_time.date() >= self.end_time.date()):
             dlg = DialogWindow("Uwaga!", "Wprowadź poprawny zakres czasu!")
             dlg.exec()      # jeśli podany jest zły przedział czasowy - komunikat o błędzie
 
         else:
-            self.tasks_obtained = get_tasks_from_calendar()
+            self.tasks_obtained = get_tasks_from_calendar(self.begin_date.date(), self.end_date.date(),
+                                                          self.begin_time.time(), self.end_time.time())
             # w przeciwnym wypadku wywoływanie właściwej funkcji pobierającej dane
             if self.tasks_obtained:     # jeśli dane się pobrały - pokaż info
                 dlg = DialogWindow("Sukces!", "Lista zadań została pobrana!")
