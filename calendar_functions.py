@@ -21,6 +21,14 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 # POBIERANIE ZADAŃ Z KALENDARZA
 def get_tasks_from_calendar(begin_date, end_date, begin_time, end_time):
 
+    """
+    :param begin_date: data początku harmonogramu
+    :param end_date: data końca harmonogramu
+    :param begin_time: godzina początku harmonogramu
+    :param end_time: godzina końca harmonogramu
+    :return: lista zadań (eventów), flaga czy zadania zostały pobrane
+    """
+
     # logowanie
     gc = None
 
@@ -31,17 +39,18 @@ def get_tasks_from_calendar(begin_date, end_date, begin_time, end_time):
         gc = GoogleCalendar(credentials_path="credentials.json", save_token=True)
 
     if not gc:
-        return False
+        return [], False
 
     # edycja dat do wymaganego formatu
     begin_date_time = (D @ begin_date.day()/begin_date.month()/begin_date.year())[begin_time.hour():begin_time.minute()]
     end_date_time = (D @ end_date.day()/end_date.month()/end_date.year())[end_time.hour():end_time.minute()]
 
     # eventy się pobierają (trzeba odświeżać token co jakiś czas)
+    # w kalendarzu ustalić duration, okna czasowe w opisie
     # ...
     events = list(gc.get_events(time_min=begin_date_time, time_max=end_date_time))
 
-    return True
+    return events, True
 
 
 
