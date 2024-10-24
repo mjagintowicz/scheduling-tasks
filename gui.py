@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDat
 from PyQt6.QtCore import Qt, QDate, QTime, QTimer
 from PyQt6.QtGui import QFont
 
-from calendar_functions import get_tasks_from_calendar
+from calendar_functions import *
 
 
 # OKNO STARTOWE
@@ -25,6 +25,8 @@ class StartWindow(QMainWindow):
         # zmienne
         self.tasks_obtained = False  # flaga czy zadania zostały już pobrane
         self.tasks = []  # lista pobranych zadań
+        self.T_begin = None # początek i koniec harmonogramu
+        self.T_end = None
 
         # zakładki
         self.tabs = QTabWidget()
@@ -136,6 +138,9 @@ class GetDataTab(QWidget):
                                                                                     self.end_date.date(),
                                                                                     self.begin_time.time(),
                                                                                     self.end_time.time())
+            self.parent.T_begin, self.parent.T_end = get_schedule_limits(self.begin_date.date(), self.end_date.date(),
+                                                                         self.begin_time.time(), self.end_time.time())
+
             # w przeciwnym wypadku wywoływanie właściwej funkcji pobierającej dane
             if self.parent.tasks_obtained:  # jeśli dane się pobrały - pokaż info
                 dlg = DialogWindow("Sukces!", "Lista zadań została pobrana!")
@@ -150,7 +155,6 @@ class GetDataTab(QWidget):
 class AddDataTab(QWidget):
 
     def __init__(self, parent: StartWindow):
-
         super(AddDataTab, self).__init__()
 
         self.parent = parent

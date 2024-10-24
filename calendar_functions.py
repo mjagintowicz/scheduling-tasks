@@ -53,5 +53,16 @@ def get_tasks_from_calendar(begin_date, end_date, begin_time, end_time):
     return events, True
 
 
+# UZYSKANIE GRANIC HARMONOGRAMU
+def get_schedule_limits(begin_date, end_date, begin_time, end_time):
+
+    begin_date_time = (D @ begin_date.day()/begin_date.month()/begin_date.year())[begin_time.hour():begin_time.minute()]
+    end_date_time = (D @ end_date.day()/end_date.month()/end_date.year())[end_time.hour():end_time.minute()]
+
+    return begin_date_time, end_date_time
+
+
+
+
 
 
