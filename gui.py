@@ -11,7 +11,7 @@ from calendar_functions import *
 class StartWindow(QMainWindow):
 
     def __init__(self):
-        super(StartWindow, self).__init__()
+        super().__init__()
 
         # tytuł okna
         self.setWindowTitle('Optymalizacja harmonogramu')
@@ -134,12 +134,9 @@ class GetDataTab(QWidget):
             dlg.exec()  # jeśli podany jest zły przedział czasowy - komunikat o błędzie
 
         else:
-            self.parent.tasks, self.parent.tasks_obtained = get_tasks_from_calendar(self.begin_date.date(),
-                                                                                    self.end_date.date(),
-                                                                                    self.begin_time.time(),
-                                                                                    self.end_time.time())
             self.parent.T_begin, self.parent.T_end = get_schedule_limits(self.begin_date.date(), self.end_date.date(),
                                                                          self.begin_time.time(), self.end_time.time())
+            self.parent.tasks, self.parent.tasks_obtained = get_tasks_from_calendar(self.parent.T_begin, self.parent.T_end)
 
             # w przeciwnym wypadku wywoływanie właściwej funkcji pobierającej dane
             if self.parent.tasks_obtained:  # jeśli dane się pobrały - pokaż info

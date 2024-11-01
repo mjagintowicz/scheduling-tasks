@@ -1,14 +1,14 @@
 # KLASA OPISUJĄCA ZADANIE
 class Task:
 
-    def __init__(self, name, duration, location, window_left, window_right):
+    def __init__(self, name, duration, location, window_left=None, window_right=None):
 
         self.name = name            # nazwa zadania
         self.duration = duration    # czas trwania
         self.location = location    # lokalizacja
 
-        self.window_left = window_left  # okna czasowe
-        self.window_right = window_right
+        #self.window_left = window_left  # okna czasowe
+        #self.window_right = window_right
 
         self.start_date_time = None
 
