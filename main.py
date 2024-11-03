@@ -14,5 +14,4 @@ def main():
 
 
 if __name__ == '__main__':
-    print('o ch ci chodzi')
     main()

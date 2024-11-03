@@ -24,6 +24,29 @@ from model_params import Task
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
 
 
+def access_calendar(calendar_id: str = 'primary') -> GoogleCalendar | None:
+
+    """
+    Uzyskanie dostępu do kalendarza Google (logowanie).
+
+    :param calendar_id: email lub nazwa/id kalendarza, domyślnie primary calendar
+    :return: obiekt GoogleCalendar reprezentujący wybrany kalendarz lub None, gdy logowanie się nie powiodło
+    """
+
+    gc = None
+
+    if os.path.exists("token.pickle"):  # jeśli dane logowania zapisane w pliku (nie jest to pierwsze logowanie)
+        gc = GoogleCalendar(default_calendar=calendar_id, credentials_path="credentials.json", token_path="token.pickle")
+
+    if not gc:  # jeśli pliku nie ma - logowanie manualne
+        gc = GoogleCalendar(default_calendar=calendar_id, credentials_path="credentials.json", save_token=True)
+
+    if not gc:  # jaka akcja, jeśli logowanie się nie powiedzie???
+        return None
+    else:
+        return gc
+
+
 def get_schedule_limits(begin_date: QDate(), end_date: QDate(), begin_time: QTime(), end_time: QTime())\
         -> Tuple[BeautifulDate, BeautifulDate]:
 
@@ -43,22 +66,6 @@ def get_schedule_limits(begin_date: QDate(), end_date: QDate(), begin_time: QTim
     return begin_date_time, end_date_time
 
 
-def get_event_info(event: Event) -> Tuple[str, int, str]:
-
-    """
-    Uzyskanie parametrów zdarzeń z kalendarza.
-
-    :param event: zdarzenie pobrane z kalendarza (event)
-    :return: nazwa, czas realizacji (min.), nazwa lokalizacji
-    """
-
-    name = event.summary
-    location_name = event.location
-    duration = (event.end - event.start).seconds / 60
-
-    return name, duration, location_name
-
-
 def event_2_task(event: Event) -> Task:
 
     """
@@ -68,32 +75,38 @@ def event_2_task(event: Event) -> Task:
     :return: zadanie do realizacji
     """
 
-    name, duration, location = get_event_info(event)
-    new_task = Task(name, duration, location)
+    task = Task(event.summary, (event.end - event.start).seconds / 60, event.location)
 
-    return new_task
+    return task
 
 
-def get_tasks_from_calendar(begin_date_time: BeautifulDate, end_date_time: BeautifulDate) -> Tuple[List[Task], bool]:
+def task_2_event(task: Task) -> Event:
+
+    """
+    Konwersja zadania do zdarzenia w kalendarzu.
+
+    :param task: zadanie
+    :return: zdarzenie (event)
+    """
+
+    event = Event(summary=task.name, start=task.start_date_time, end=task.end_date_time, location=task.location)
+    return event
+
+
+def get_tasks_from_calendar(begin_date_time: BeautifulDate, end_date_time: BeautifulDate, calendar_id: str = 'primary') -> Tuple[List[Task], bool]:
 
     """
     Pobieranie zadań z kalendarza w wybranym zakresie czasu.
 
     :param begin_date_time: data i godzina początku zakresu
     :param end_date_time: data i godzina końca zakresu
+    :param calendar_id: nazwa kalendarza (domyślnie primary)
     :return: lista zadań do wykonania w wybranym zakresie, informacja o poprawnie pobranych danych
     """
 
-    # logowanie
-    gc = None
+    gc = access_calendar(calendar_id)   # uzyskanie dostępu do kalendarza
 
-    if os.path.exists("token.pickle"):  # jeśli dane logowania zapisane w pliku (nie jest to pierwsze logowanie)
-        gc = GoogleCalendar(credentials_path="credentials.json", token_path="token.pickle")
-
-    if not gc:  # jeśli pliku nie ma - logowanie manualne
-        gc = GoogleCalendar(credentials_path="credentials.json", save_token=True)
-
-    if not gc:      # co jeśli logowanie się nie powiedzie???
+    if not gc:          # jeśli się nie powiodł
         return [], False
 
     events = list(gc.get_events(time_min=begin_date_time, time_max=end_date_time))  # pobranie listy zdarzeń
@@ -105,7 +118,28 @@ def get_tasks_from_calendar(begin_date_time: BeautifulDate, end_date_time: Beaut
     return tasks, True
 
 
+def add_task_to_calendar(task: Task, calendar_id: str = 'primary') -> bool:
 
+    """
+    Dodanie zadania do kalendarza Google.
+
+    :param task: zadanie, które ma zostać dodane
+    :param calendar_id: nazwa kalendarza docelowego (domyślnie primary)
+    :return: informacja, czy udało się dodać zadanie
+    """
+
+    gc = access_calendar(calendar_id)
+
+    if not gc:
+        return False
+
+    # verify location
+    # ...
+
+    event = task_2_event(task)
+    gc.add_event(event)
+
+    return True
 
 
 
