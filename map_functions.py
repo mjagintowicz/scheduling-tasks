@@ -3,14 +3,17 @@
 import googlemaps
 from re import findall
 from datetime import datetime, timedelta
+from typing import List, Tuple
+from copy import deepcopy
+from re import search
 
 my_key = 'AIzaSyCwEhmwpCvZfGfhwgn_GY2dpIkPV5P68ME'
-
 gmaps = googlemaps.Client(key=my_key)  # nowy klient
 
+inf = float('inf')
 
-def get_location_working_hours(name):
 
+def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
     """
     Funkcja do uzyskania informacji na temat godzin pracy wybranej lokalizacji.
     :param name: nazwa miejsca - oczekiwany precyzyjny adres/unikatowa nazwa w celu jednoznacznej identyfikacji miejsca
@@ -29,19 +32,19 @@ def get_location_working_hours(name):
 
     pattern = r'\d+:\d+\s(?:A|P)M'  # wzorzec, do którego ma być dopasowany tekst
 
-    for data in weekday_text:       # dla każdego dnia tygodnia
+    for data in weekday_text:  # dla każdego dnia tygodnia
         data = data.replace('\u2009', "")
-        matches = findall(pattern, data)        # znajdź godziny pracy w napisie
+        matches = findall(pattern, data)  # znajdź godziny pracy w napisie
 
-        if matches:     # jeśli są
+        if matches:  # jeśli są
 
-            opening_hour, opening_a_p = matches[0].split('\u202f')      # kowersja godzin do wybranego formatu
+            opening_hour, opening_a_p = matches[0].split('\u202f')  # kowersja godzin do wybranego formatu
             if opening_a_p == 'PM':
                 new_time = datetime.strptime(opening_hour, '%H:%M')
                 new_time = new_time + timedelta(hours=12)
                 opening_hour = new_time.strftime('%H:%M')
 
-            opening_hours.append(opening_hour)      # dodanie godziny do listy godzin otwarcia
+            opening_hours.append(opening_hour)  # dodanie godziny do listy godzin otwarcia
 
             # analogicznie dla godzin zamknięcia
             closing_hour, closing_a_p = matches[1].split('\u202f')
@@ -52,8 +55,93 @@ def get_location_working_hours(name):
 
             closing_hours.append(closing_hour)
 
-        else:       # jeśli brak dopasowań przyjęte założenie, że miejsce jest zamknięte
+        else:  # jeśli brak dopasowań przyjęte założenie, że miejsce jest zamknięte
             opening_hours.append('-')
             closing_hours.append('-')
 
     return opening_hours, closing_hours
+
+
+def iterate_through_matrix(rows: List) -> List[List[int]]:
+
+    """
+    Funkcja pomocnicza do iterowania po rzędach macierzy odległości zwróconej przez klienta Pythona.
+    :param rows: rzędzy macierzy odległości
+    :return: macierz odległości z wartościami czasów (w minutach)
+    """
+
+    patterns = [r'(\d+)\s*day', r'(\d+)\s*hour', r'(\d+)\s*min']  # wzorce do odczytania czasu z tekstu
+
+    size = len(rows)  # wymiary macierzy (size x size)
+    matrix = [[0] * size for _ in range(size)]  # inicjalizacja wyjściowej macierzy
+
+    row_cnt = 0
+    for element in rows:
+        col_cnt = 0
+        for item in element['elements']:
+
+            if row_cnt == col_cnt:      # jeśli jest to element na przekątnej (dystans z A do A)
+                distance_time = inf     # uzupełnienie inf
+            else:
+                distance_time_str = item['duration']['text']
+                distance_time = 0
+
+                i = 0
+                for pattern in patterns:
+                    match = search(pattern, distance_time_str)     # wyznaczenie czasu w minutach
+                    if match is not None:
+                        if i == 0:
+                            distance_time += int(match.group(1)) * 24 * 60
+                        elif i == 1:
+                            distance_time += int(match.group(1)) * 60
+                        else:
+                            distance_time += int(match.group(1))
+                    i += 1
+
+            matrix[row_cnt][col_cnt] = distance_time        # aktualizacja macierzy
+
+            col_cnt += 1
+
+        row_cnt += 1
+
+    return matrix
+
+
+def get_distance_matrix(locations: List[str], modes: List[str], transit_modes: List[str] = None):
+
+    """
+    :param locations: lista lokalizacji (wierzchołki grafu)
+    :param modes: metody transportu (“driving”, “walking”, “transit” or “bicycling”)
+    :param transit_modes: dodatkowe informacje, jeśli wcześniej wybrano "transit" (“bus”, “subway”, “train”, “tram”, “rail”)
+    :return: lista z macierzami dystansów dla wybranych sposobów podróży (czas w minutach)
+    """
+
+    # w przyszłej wersji dodać departure/arrival time!!!
+
+    matrixes = []
+
+    for mode in modes:   # dla każdej wybranej metody
+
+        # pobranie danych
+        if mode == 'transit':
+            for transit_mode in transit_modes:
+                rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
+                                             transit_mode=transit_mode)['rows']
+
+                # proponuję dla tych metod robić to ręcznie za pomocą distance -> dokładniejsze wyniki
+                # albo i nie bo wychodzi na to samo (wliczane jest też czekanie, czyli wynik to jest najkrótszy czas oczekiwania na autobus+przejazd i dojście)
+
+                matrix_tmp = iterate_through_matrix(rows)  # utworzenie macierzy dla wybranej metody
+                matrixes.append(deepcopy(matrix_tmp))
+
+        else:
+            rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode)['rows']
+
+            matrix_tmp = iterate_through_matrix(rows)
+            matrixes.append(deepcopy(matrix_tmp))
+
+    return matrixes
+
+
+#print(gmaps.directions(origin='Basen AGH, Kraków', destination='Galeria Krakowska, Kraków', mode='transit', transit_mode='bus'))
+#print(get_distance_matrix(['Basen AGH', 'Galeria Krakowska, Kraków'], ['transit'], ['bus']))
