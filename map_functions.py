@@ -18,6 +18,7 @@ gmaps = googlemaps.Client(key=my_key)  # nowy klient
 
 
 def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
+
     """
     Funkcja do uzyskania informacji na temat godzin pracy wybranej lokalizacji.
     :param name: nazwa miejsca - oczekiwany precyzyjny adres/unikatowa nazwa w celu jednoznacznej identyfikacji miejsca
@@ -124,18 +125,52 @@ def iterate_through_matrix(rows: List) -> List[List[int]]:
     return matrix
 
 
-def get_distance_matrixes(locations: List[str], modes: List[str], transit_modes: List[str] = None,
-                          depature_time: BeautifulDate = D.now()) -> List[List[List[int]]]:
+def get_fare(rows: List) -> List[List[int]]:
+
+    """
+    Uzyskanie informacji na temat kosztów biletów.
+    :param rows: rzędy macierzy odległości
+    :return: macierz kosztów
+    """
+
+    size = len(rows)  # wymiary macierzy (size x size)
+    matrix = [[0] * size for _ in range(size)]  # inicjalizacja wyjściowej macierzy
+
+    row_cnt = 0
+    for element in rows:
+        col_cnt = 0
+        for item in element['elements']:
+
+            if row_cnt == col_cnt:  # jeśli jest to element na przekątnej (dystans z A do A)
+                fare = inf  # uzupełnienie inf
+            else:
+                if 'fare' in item:          # jeśli jest informacja o koszcie
+                    fare = item['fare']['value']
+                else:
+                    fare = inf
+
+            matrix[row_cnt][col_cnt] = fare  # aktualizacja macierzy
+
+            col_cnt += 1
+
+        row_cnt += 1
+
+    return matrix
+
+
+def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_modes: List[str] = None,
+                               departure_time: BeautifulDate = D.now()):
 
     """
     :param locations: lista lokalizacji (wierzchołki grafu)
     :param modes: metody transportu (“driving”, “walking”, “transit” or “bicycling”)
     :param transit_modes: dodatkowe informacje, jeśli wcześniej wybrano "transit" (“bus”, “subway”, “train”, “tram”, “rail”)
-    :param depature_time: chwila, w której można kontynuować kurs (domyślnie - teraz)
+    :param departure_time: chwila, w której można kontynuować kurs (domyślnie - teraz)
     :return: lista z macierzami dystansów dla wybranych sposobów podróży (czas w minutach)
     """
 
-    matrixes = []
+    distance_matrixes = []
+    cost_matrixes = []
 
     for mode in modes:   # dla każdej wybranej metody
 
@@ -143,19 +178,24 @@ def get_distance_matrixes(locations: List[str], modes: List[str], transit_modes:
         if mode == 'transit':
             for transit_mode in transit_modes:
                 rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
-                                             transit_mode=transit_mode, depature_time=depature_time)['rows']
+                                             transit_mode=transit_mode, departure_time=departure_time)['rows']
 
-                matrix_tmp = iterate_through_matrix(rows)  # utworzenie macierzy dla wybranej metody
-                matrixes.append(deepcopy(matrix_tmp))
+                distance_matrix_tmp = iterate_through_matrix(rows)  # utworzenie macierzy dla wybranej metody
+                distance_matrixes.append(deepcopy(distance_matrix_tmp))
+
+                cost_matrix_tmp = get_fare(rows)
+                cost_matrixes.append(deepcopy(cost_matrix_tmp))
 
         else:
             rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
-                                         depature_time=depature_time)['rows']
+                                         departure_time=departure_time)['rows']
 
-            matrix_tmp = iterate_through_matrix(rows)
-            matrixes.append(deepcopy(matrix_tmp))
+            distance_matrix_tmp = iterate_through_matrix(rows)
+            distance_matrixes.append(deepcopy(distance_matrix_tmp))
+            cost_matrix_tmp = get_fare(rows)
+            cost_matrixes.append(deepcopy(cost_matrix_tmp))
 
-    return matrixes
+    return distance_matrixes, cost_matrixes
 
 
 def get_transit_route_details(origin: str, destination: str, transit_mode: str,
