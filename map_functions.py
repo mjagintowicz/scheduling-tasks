@@ -6,11 +6,15 @@ from datetime import datetime, timedelta
 from typing import List, Tuple
 from copy import deepcopy
 from re import search
+from beautiful_date import *
 
-my_key = 'AIzaSyCwEhmwpCvZfGfhwgn_GY2dpIkPV5P68ME'
-gmaps = googlemaps.Client(key=my_key)  # nowy klient
 
 inf = float('inf')
+
+with open('key.txt', 'r') as file:      # odczytanie klucza z pliku txt
+    my_key = file.read().rstrip()
+
+gmaps = googlemaps.Client(key=my_key)  # nowy klient
 
 
 def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
@@ -62,6 +66,33 @@ def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
     return opening_hours, closing_hours
 
 
+def time_pattern_match(distance_time_str: str) -> int:
+
+    """
+    Konwersja tekstu z wartością czasu na odpowiadającą mu liczbę minut (int).
+    :param distance_time_str: tekst z czasem po angielsku (np. 1 day 2 horus)
+    :return: czas w minutach
+    """
+
+    patterns = [r'(\d+)\s*day', r'(\d+)\s*hour', r'(\d+)\s*min']  # wzorce do odczytania czasu z tekstu
+
+    distance_time = 0
+
+    i = 0
+    for pattern in patterns:
+        match = search(pattern, distance_time_str)  # wyznaczenie czasu w minutach
+        if match is not None:
+            if i == 0:
+                distance_time += int(match.group(1)) * 24 * 60
+            elif i == 1:
+                distance_time += int(match.group(1)) * 60
+            else:
+                distance_time += int(match.group(1))
+        i += 1
+
+    return distance_time
+
+
 def iterate_through_matrix(rows: List) -> List[List[int]]:
 
     """
@@ -69,8 +100,6 @@ def iterate_through_matrix(rows: List) -> List[List[int]]:
     :param rows: rzędzy macierzy odległości
     :return: macierz odległości z wartościami czasów (w minutach)
     """
-
-    patterns = [r'(\d+)\s*day', r'(\d+)\s*hour', r'(\d+)\s*min']  # wzorce do odczytania czasu z tekstu
 
     size = len(rows)  # wymiary macierzy (size x size)
     matrix = [[0] * size for _ in range(size)]  # inicjalizacja wyjściowej macierzy
@@ -84,19 +113,7 @@ def iterate_through_matrix(rows: List) -> List[List[int]]:
                 distance_time = inf     # uzupełnienie inf
             else:
                 distance_time_str = item['duration']['text']
-                distance_time = 0
-
-                i = 0
-                for pattern in patterns:
-                    match = search(pattern, distance_time_str)     # wyznaczenie czasu w minutach
-                    if match is not None:
-                        if i == 0:
-                            distance_time += int(match.group(1)) * 24 * 60
-                        elif i == 1:
-                            distance_time += int(match.group(1)) * 60
-                        else:
-                            distance_time += int(match.group(1))
-                    i += 1
+                distance_time = time_pattern_match(distance_time_str)       # konwersja str do liczby minut
 
             matrix[row_cnt][col_cnt] = distance_time        # aktualizacja macierzy
 
@@ -107,16 +124,16 @@ def iterate_through_matrix(rows: List) -> List[List[int]]:
     return matrix
 
 
-def get_distance_matrix(locations: List[str], modes: List[str], transit_modes: List[str] = None):
+def get_distance_matrixes(locations: List[str], modes: List[str], transit_modes: List[str] = None,
+                          depature_time: BeautifulDate = D.now()) -> List[List[List[int]]]:
 
     """
     :param locations: lista lokalizacji (wierzchołki grafu)
     :param modes: metody transportu (“driving”, “walking”, “transit” or “bicycling”)
     :param transit_modes: dodatkowe informacje, jeśli wcześniej wybrano "transit" (“bus”, “subway”, “train”, “tram”, “rail”)
+    :param depature_time: chwila, w której można kontynuować kurs (domyślnie - teraz)
     :return: lista z macierzami dystansów dla wybranych sposobów podróży (czas w minutach)
     """
-
-    # w przyszłej wersji dodać departure/arrival time!!!
 
     matrixes = []
 
@@ -126,16 +143,14 @@ def get_distance_matrix(locations: List[str], modes: List[str], transit_modes: L
         if mode == 'transit':
             for transit_mode in transit_modes:
                 rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
-                                             transit_mode=transit_mode)['rows']
-
-                # proponuję dla tych metod robić to ręcznie za pomocą distance -> dokładniejsze wyniki
-                # albo i nie bo wychodzi na to samo (wliczane jest też czekanie, czyli wynik to jest najkrótszy czas oczekiwania na autobus+przejazd i dojście)
+                                             transit_mode=transit_mode, depature_time=depature_time)['rows']
 
                 matrix_tmp = iterate_through_matrix(rows)  # utworzenie macierzy dla wybranej metody
                 matrixes.append(deepcopy(matrix_tmp))
 
         else:
-            rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode)['rows']
+            rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
+                                         depature_time=depature_time)['rows']
 
             matrix_tmp = iterate_through_matrix(rows)
             matrixes.append(deepcopy(matrix_tmp))
@@ -143,5 +158,47 @@ def get_distance_matrix(locations: List[str], modes: List[str], transit_modes: L
     return matrixes
 
 
-#print(gmaps.directions(origin='Basen AGH, Kraków', destination='Galeria Krakowska, Kraków', mode='transit', transit_mode='bus'))
-#print(get_distance_matrix(['Basen AGH', 'Galeria Krakowska, Kraków'], ['transit'], ['bus']))
+def get_transit_route_details(origin: str, destination: str, transit_mode: str,
+                              departure_time: BeautifulDate = D.now()) -> List[Tuple]:
+
+    """
+    Uzyskanie dodatkowych informacji na temat trasy komunikacji miejskiej.
+    :param origin: początek trasy
+    :param destination: koniec trasy
+    :param transit_mode: rodzaj komunikacji miejskiej (“bus”, “subway”, “train”, “tram”, “rail”)
+    :param departure_time: czas rozpoczęcia trasy (domyślnie teraz)
+    :return: lista krotek (czas, rodzaj przemieszczenia, opcj. przystanek początkowy, końcowy, linia)
+    """
+
+    route_details = []
+
+    # kolejne elementy trasy
+    steps = gmaps.directions(origin=origin, destination=destination, mode='transit', transit_mode=transit_mode,
+                                 departure_time=departure_time)[0]['legs'][0]['steps']
+
+    for step in steps:
+
+        duration_txt = step['duration']['text']
+        duration = time_pattern_match(duration_txt)     # wyznaczenie czasu
+
+        mode = step['travel_mode']
+
+        if mode == 'TRANSIT':    # jeśli jest to fragment z przejazdem to zapisz dodatkowe info (skąd, dokąd, czym)
+            departure_stop = step['transit_details']['departure_stop']['name']
+            arrival_stop = step['transit_details']['arrival_stop']['name']
+
+            if 'short_name' in step['transit_details']['line']:
+                line = step['transit_details']['line']['short_name']
+                step_info = (duration, mode, departure_stop, arrival_stop, line)
+            elif 'name' in step['transit_details']['line']:
+                line = step['transit_details']['line']['name']
+                step_info = (duration, mode, departure_stop, arrival_stop, line)
+            else:
+                step_info = (duration, mode, departure_stop, arrival_stop)
+
+        else:
+            step_info = (duration, mode)
+
+        route_details.append(step_info)
+
+    return route_details
