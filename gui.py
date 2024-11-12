@@ -4,6 +4,7 @@ from PyQt6.QtCore import Qt, QDate, QTime, QTimer
 from PyQt6.QtGui import QFont
 
 from calendar_functions import *
+from model_params import Task
 
 
 # OKNO STARTOWE
@@ -25,7 +26,7 @@ class StartWindow(QMainWindow):
         # zmienne
         self.tasks_obtained = False  # flaga czy zadania zostały już pobrane
         self.tasks = []  # lista pobranych zadań
-        self.T_begin = None # początek i koniec harmonogramu
+        self.T_begin = None  # początek i koniec harmonogramu
         self.T_end = None
 
         # zakładki
@@ -35,25 +36,17 @@ class StartWindow(QMainWindow):
         self.show()
 
         # zakładka 1. - wczytywanie danych
-        self.tab1 = GetDataTab(self)
-        self.tabs.addTab(self.tab1, "Wczytaj zadania")
-
-        # zakładka 2. - dodawanie nowych zadań do kalendarza
-        self.tab2 = AddDataTab(self)
-        self.tabs.addTab(self.tab2, "Dodaj zadania")
-
-        # zakładka 3. - zadania (możliwe, że zastąpi 2.)
-        self.tab3 = TaskTab(self)
-        self.tabs.addTab(self.tab3, "Zadania")
+        self.tab1 = TaskTab(self)
+        self.tabs.addTab(self.tab1, "Zadania")
 
 
 # WCZYTYWANIE DANYCH
 
-class GetDataTab(QWidget):
+class TaskTab(QWidget):
 
     def __init__(self, parent: StartWindow):
 
-        super(GetDataTab, self).__init__()
+        super(TaskTab, self).__init__()
 
         self.parent = parent
 
@@ -62,6 +55,17 @@ class GetDataTab(QWidget):
         self.start_button.setFixedSize(400, 200)
         self.start_button.setFont(QFont('Calibri', 25))
         self.start_button.clicked.connect(self.get_data)  # po kliknięciu funkcja
+
+        # przycisk otwierający okno podgląd
+        self.tasks_button = QPushButton('Twoje zadania', self)
+        self.tasks_button.setFixedSize(400, 200)
+        self.tasks_button.setFont(QFont('Calibri', 25))
+        self.tasks_button.clicked.connect(self.display_tasks)
+
+        # layout do przycisków
+        self.button_layout = QVBoxLayout()
+        self.button_layout.addWidget(self.start_button)
+        self.button_layout.addWidget(self.tasks_button)
 
         # wybór dat
         self.begin_date = QDateEdit()
@@ -120,12 +124,17 @@ class GetDataTab(QWidget):
 
         # layout główny
         self.start_layout = QHBoxLayout()
-        self.start_layout.addWidget(self.start_button, alignment=Qt.AlignmentFlag.AlignCenter)
+        self.start_layout.addLayout(self.button_layout)
         self.start_layout.addLayout(self.full_date_time_layout)
         self.setLayout(self.start_layout)
 
     # funkcja pobierająca dane
     def get_data(self):
+
+        """
+        Pobieranie danych z kalendarza Google.
+        :return:
+        """
 
         if self.begin_date.date() > self.end_date.date() or \
                 (self.begin_date.date() == self.end_date.date() and
@@ -136,7 +145,8 @@ class GetDataTab(QWidget):
         else:
             self.parent.T_begin, self.parent.T_end = get_schedule_limits(self.begin_date.date(), self.end_date.date(),
                                                                          self.begin_time.time(), self.end_time.time())
-            self.parent.tasks, self.parent.tasks_obtained = get_tasks_from_calendar(self.parent.T_begin, self.parent.T_end)
+            self.parent.tasks, self.parent.tasks_obtained = get_tasks_from_calendar(self.parent.T_begin,
+                                                                                    self.parent.T_end)
 
             # w przeciwnym wypadku wywoływanie właściwej funkcji pobierającej dane
             if self.parent.tasks_obtained:  # jeśli dane się pobrały - pokaż info
@@ -148,79 +158,10 @@ class GetDataTab(QWidget):
                                                      "'Dodaj zadania'.")
                 dlg.exec()
 
+    def display_tasks(self):
 
-class AddDataTab(QWidget):
-
-    def __init__(self, parent: StartWindow):
-        super(AddDataTab, self).__init__()
-
-        self.parent = parent
-
-        # layout główny
-        self.layout = QHBoxLayout()
-        self.setLayout(self.layout)
-
-        # 1. utworzenie manualnie całkiem nowego setu zadań
-        self.layout_1 = QHBoxLayout()
-        self.layout.addLayout(self.layout_1)
-
-        self.label_1 = QLabel("Utwórz nową listę zadań")
-        self.layout_1.addWidget(self.label_1)
-
-        # 2. dodanie manulanie zadań do pobranego setu
-        self.layout_2 = QHBoxLayout()
-        self.layout.addLayout(self.layout_2)
-
-        self.label_2 = QLabel("Dodaj zadania do aktualnej listy")
-        self.layout_2.addWidget(self.label_2)
-
-
-class TaskTab(QWidget):
-
-    def __init__(self, parent: StartWindow):
-
-        super(TaskTab, self).__init__()
-
-        self.parent = parent
-
-        # layout główny
-        self.layout = QVBoxLayout()
-        self.setLayout(self.layout)
-
-        self.title_label = QLabel("Twoje zadania")
-        self.layout.addWidget(self.title_label)
-
-        # ramka, jeśli zadań nie ma
-        self.info_label = QLabel("Brak zadań! Pobierz je ze swojego kalendarza lub dodaj ręcznie.")
-        self.add_button = QPushButton("Dodaj zadanie +")
-
-        self.layout_no_tasks = QVBoxLayout()
-        self.layout_no_tasks.addWidget(self.info_label)
-        self.layout_no_tasks.addWidget(self.add_button)
-        self.frame_no_tasks = QFrame()
-        self.frame_no_tasks.setLayout(self.layout_no_tasks)
-
-        self.layout.addWidget(self.frame_no_tasks)
-
-        # ramka, jeśli są już zadania (przycisk na razie nie działa)
-        self.layout_tasks = QVBoxLayout()
-        self.frame_tasks = QFrame()
-        self.frame_tasks.setLayout(self.layout_tasks)
-
-        if not self.parent.tasks_obtained:
-            self.frame_tasks.hide()
-            self.frame_no_tasks.show()
-
-        if self.parent.tasks_obtained:
-            for task in self.parent.tasks:
-                task_label = QLabel(str(task))
-                self.layout_tasks.addWidget(task_label)
-            self.frame_no_tasks.hide()
-            self.frame_tasks.show()
-
-        # QTimer do odświeżania zakładki???
-        # albo do sprawdzania czy nastąpiła jakaś zmiana w zmiennych
-        # np. refresh_request wysłany - startwindow od nowa załadaje zakładkęs
+        dlg = TaskWindow(self.parent)
+        dlg.exec()
 
 
 # OKNO DIALOGOWE
@@ -231,7 +172,6 @@ class DialogWindow(QDialog):
         super(QDialog, self).__init__()
 
         self.title = title
-        self.message = message
 
         self.setWindowTitle(title)
 
@@ -243,4 +183,51 @@ class DialogWindow(QDialog):
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.txt)
         self.layout.addWidget(self.ok_button)
+        self.setLayout(self.layout)
+
+
+# OKNO Z DOSTĘPNYMI ZADANIAMI
+
+class TaskWindow(QDialog):
+
+    def __init__(self, parent: StartWindow):
+        super(QDialog, self).__init__()
+
+        self.parent = parent
+        self.title = 'Zadania'
+
+        self.layout = QVBoxLayout()
+
+        if self.parent.tasks_obtained:
+            for task in self.parent.tasks:
+
+                task_layout = QHBoxLayout()
+
+                task_name = QLabel(task.name)
+                task_location = QLabel(task.location)
+
+                begin_date = QDateEdit()
+                begin_date.setCalendarPopup(True)
+                begin_date.setDate(self.parent.T_begin)
+                begin_date.setFixedSize(100, 30)
+
+                end_date = QDateEdit()
+                end_date.setCalendarPopup(True)
+                end_date.setDate(self.parent.T_end)
+                end_date.setFixedSize(100, 30)\
+
+                task_layout.addWidget(task_name)
+                task_layout.addWidget(task_location)
+                task_layout.addWidget(begin_date)
+                task_layout.addWidget(end_date)
+                self.layout.addLayout(task_layout)
+
+                # timeedit
+                # ok button
+                # update okien czasowych przy zmianie parametrów daty w tym oknie
+
+        else:
+            info_label = QLabel("Brak zadań")
+            self.layout.addWidget(info_label)
+
         self.setLayout(self.layout)

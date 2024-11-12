@@ -6,8 +6,8 @@ from datetime import timedelta, time, datetime
 # KLASA OPISUJĄCA ZADANIE
 class Task:
 
-    def __init__(self, name: str, duration: int, location: str, window_left: BeautifulDate = None,
-                 window_right: BeautifulDate = None) -> None:
+    def __init__(self, name: str, duration: int, location: str, window_left: BeautifulDate,
+                 window_right: BeautifulDate) -> None:
         self.name = name  # nazwa zadania
         self.duration = duration  # czas trwania
         self.location = location  # lokalizacja
@@ -15,7 +15,7 @@ class Task:
         self.opening_hours = None  # godziny pracy
         self.closing_hours = None
 
-        self.window_left = window_left  # dodatkowe ograniczenia zawężające okres czasu na realizację (opcjonalne)
+        self.window_left = window_left  # dodatkowe ograniczenia zawężające okres czasu na realizację
         self.window_right = window_right
 
         self.start_date_time = None  # ustalony czas rozpoczęcia i zakończenia zadania
@@ -23,6 +23,16 @@ class Task:
 
         # dodać parametry opisujące transport
         # ...
+
+    def set_time_windows(self, window_left: BeautifulDate, window_right: BeautifulDate):
+        """
+        Zawężanie czasu na realizację.
+        :param window_left: najwcześniejszy termin rozpoczęcia
+        :param window_right: najpóźniejszy termin zakończenia
+        :return: NIC
+        """
+        self.window_left = window_left
+        self.window_right = window_right
 
     def set_start_end_date_time(self, start_date_time: BeautifulDate, end_date_time: BeautifulDate) -> None:
         """

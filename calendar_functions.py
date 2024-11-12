@@ -66,16 +66,17 @@ def get_schedule_limits(begin_date: QDate(), end_date: QDate(), begin_time: QTim
     return begin_date_time, end_date_time
 
 
-def event_2_task(event: Event) -> Task:
+def event_2_task(event: Event, begin_date_time: BeautifulDate, end_date_time: BeautifulDate) -> Task:
 
     """
     Konwersja (typów) zdarzenia z kalendarza na zadanie.
 
     :param event: zdarzenie z kalendarza
+    :param begin_date_time: T_begin
+    :param end_date_time: T_end
     :return: zadanie do realizacji
     """
-
-    task = Task(event.summary, (event.end - event.start).seconds / 60, event.location)
+    task = Task(event.summary, (event.end - event.start).seconds / 60, event.location, begin_date_time, end_date_time)
 
     return task
 
@@ -113,7 +114,7 @@ def get_tasks_from_calendar(begin_date_time: BeautifulDate, end_date_time: Beaut
     tasks = []
 
     for event in events:    # konwersja zdarzeń do zadań
-        tasks.append(event_2_task(event))
+        tasks.append(event_2_task(event, begin_date_time, end_date_time))
 
     return tasks, True
 
@@ -142,9 +143,8 @@ def add_task_to_calendar(task: Task, calendar_id: str = 'primary') -> bool:
     return True
 
 
-
-
-
+# exception - kiedy token jest nieaktualny
+# albo kasuj go razem z zamknięciem aplikacji
 
 
 
