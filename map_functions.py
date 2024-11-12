@@ -162,6 +162,7 @@ def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_m
                                departure_time: BeautifulDate = D.now()):
 
     """
+    Uzyskanie macierzy odległości i macierzy kosztów.
     :param locations: lista lokalizacji (wierzchołki grafu)
     :param modes: metody transportu (“driving”, “walking”, “transit” or “bicycling”)
     :param transit_modes: dodatkowe informacje, jeśli wcześniej wybrano "transit" (“bus”, “subway”, “train”, “tram”, “rail”)
