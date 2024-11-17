@@ -1,6 +1,7 @@
 from beautiful_date import *
 from map_functions import get_location_working_hours
 from datetime import timedelta, time, datetime
+from typing import List
 
 
 # KLASA OPISUJĄCA ZADANIE
@@ -21,8 +22,7 @@ class Task:
         self.start_date_time = None  # ustalony czas rozpoczęcia i zakończenia zadania
         self.end_date_time = None
 
-        # dodać parametry opisujące transport
-        # ...
+        self.travel_method = None   # ustalona metoda transportu do lokalizacji zadania
 
     def set_time_windows(self, window_left: BeautifulDate, window_right: BeautifulDate):
         """
@@ -45,6 +45,16 @@ class Task:
         self.start_date_time = start_date_time
         self.end_date_time = end_date_time
 
+    def set_travel_method(self, travel_method: str):
+        """
+        Metoda ustawiająca parametr określający metodę transportu do lokalizacji zadania
+        :param travel_method: metoda transportu (“driving”, “walking”, “bus”, “subway”, “train”, “tram”, “rail”, “bicycling”)
+        takie jak w mapach
+        :return: NIC
+        """
+
+        self.travel_method = travel_method
+
     def get_working_hours(self):
         """
         Uzyskanie informacji na temat godzin pracy lokalizacji z Google Places API.
@@ -54,7 +64,6 @@ class Task:
         self.opening_hours, self.closing_hours = get_location_working_hours(self.location)
 
     def is_available(self, date_time: BeautifulDate) -> bool:
-
         """
         Sprawdzenie czy w wybranej chwili możliwa jest realizacja zadania.
         :param date_time: data i godzina
@@ -89,7 +98,6 @@ class Task:
 
         # zadanie jest dostępne, jeśli żaden z powyższych warunków nie został spełniony
         return True
-
 
 
 #task = Task("test", 20, "Galeria Krakowska", (D @ 12 / 11 / 2024)[8:00], (D @ 14 / 12 / 2024)[8:00])
