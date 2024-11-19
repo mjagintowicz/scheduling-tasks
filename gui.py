@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, \
-    QTabWidget, QDialog, QDialogButtonBox, QFrame
+    QTabWidget, QDialog, QDialogButtonBox, QGridLayout
 from PyQt6.QtCore import Qt, QDate, QTime, QTimer
 from PyQt6.QtGui import QFont
 
@@ -57,7 +57,7 @@ class TaskTab(QWidget):
         self.start_button.clicked.connect(self.get_data)  # po kliknięciu funkcja
 
         # przycisk otwierający okno podgląd
-        self.tasks_button = QPushButton('Twoje zadania', self)
+        self.tasks_button = QPushButton('Potwierdź listę zadań', self)
         self.tasks_button.setFixedSize(400, 200)
         self.tasks_button.setFont(QFont('Calibri', 25))
         self.tasks_button.clicked.connect(self.display_tasks)
@@ -194,17 +194,40 @@ class TaskWindow(QDialog):
         super(QDialog, self).__init__()
 
         self.parent = parent
-        self.title = 'Zadania'
 
-        self.layout = QVBoxLayout()
+        self.layout = QGridLayout()
+
+        self.data_layout = QHBoxLayout()
+
+        # 4 layouty (nazwa, lokalizacja, początek, koniec)
+        self.names_layout = QVBoxLayout()
+        self.locations_layout = QVBoxLayout()
+        self.start_date_time_layout = QVBoxLayout()
+        self.end_date_time_layout = QVBoxLayout()
+
+        # etykiety
+        self.name_label = QLabel("NAZWA")
+        self.names_layout.addWidget(self.name_label)
+        self.location_label = QLabel("LOKALIZACJA")
+        self.locations_layout.addWidget(self.location_label)
+        self.start_label = QLabel("NAJWCZEŚNIEJSZA DATA I GODZINA ROZPOCZĘCIA")
+        self.start_date_time_layout.addWidget(self.start_label)
+        self.end_label = QLabel("NAJPÓŹNIEJSZA DATA I GODZINA ZAKOŃCZENIA")
+        self.end_date_time_layout.addWidget(self.end_label)
+
+        self.ok_layout = QHBoxLayout()
 
         if self.parent.tasks_obtained:
             for task in self.parent.tasks:
 
-                task_layout = QHBoxLayout()
+                start_layout = QHBoxLayout()
+                end_layout = QHBoxLayout()
 
                 task_name = QLabel(task.name)
+                task_name.setFixedHeight(30)
+
                 task_location = QLabel(task.location)
+                task_location.setFixedHeight(30)
 
                 begin_date = QDateEdit()
                 begin_date.setCalendarPopup(True)
@@ -214,20 +237,54 @@ class TaskWindow(QDialog):
                 end_date = QDateEdit()
                 end_date.setCalendarPopup(True)
                 end_date.setDate(self.parent.T_end)
-                end_date.setFixedSize(100, 30)\
+                end_date.setFixedSize(100, 30)
 
-                task_layout.addWidget(task_name)
-                task_layout.addWidget(task_location)
-                task_layout.addWidget(begin_date)
-                task_layout.addWidget(end_date)
-                self.layout.addLayout(task_layout)
+                begin_time = QTimeEdit()
+                begin_time.setTime(QTime(self.parent.T_begin.hour, self.parent.T_begin.minute))
+                begin_time.setFixedSize(80, 30)
 
-                # timeedit
-                # ok button
-                # update okien czasowych przy zmianie parametrów daty w tym oknie
+                end_time = QTimeEdit()
+                end_time.setTime(QTime(self.parent.T_end.hour, self.parent.T_end.minute))
+                end_time.setFixedSize(80, 30)
+
+                start_layout.addWidget(begin_date)
+                start_layout.addWidget(begin_time)
+                end_layout.addWidget(end_date)
+                end_layout.addWidget(end_time)
+
+                self.names_layout.addWidget(task_name)
+                self.locations_layout.addWidget(task_location)
+                self.start_date_time_layout.addLayout(start_layout)
+                self.end_date_time_layout.addLayout(end_layout)
+
+                # nowy layout
+                # checkboxy jeśli zadania mają fixed time (mają być niezmieniane) ale to później
+
+            self.data_layout.addLayout(self.names_layout)
+            self.data_layout.addLayout(self.locations_layout)
+            self.data_layout.addLayout(self.start_date_time_layout)
+            self.data_layout.addLayout(self.end_date_time_layout)
+
+            ok_button = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+            ok_button.accepted.connect(self.accept)
+            # button akceptuje wprowadzone dane i tworzy z nich obiekty typu Task
+
+            self.layout.addLayout(self.data_layout, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.layout.addWidget(ok_button, 1, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.layout.setRowStretch(0, 1)
+            self.layout.setRowStretch(2, 1)
+
+            self.setWindowTitle("Pobrane zadania")
 
         else:
-            info_label = QLabel("Brak zadań")
-            self.layout.addWidget(info_label)
+            info_label = QLabel("Brak zadań!")
+            ok_button = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
+            ok_button.accepted.connect(self.accept)
+
+            self.layout.addWidget(info_label, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+            self.layout.addWidget(ok_button, 1, 0, alignment=Qt.AlignmentFlag.AlignCenter)
+
+            self.setWindowTitle("Uwaga!")
+            self.setFixedSize(200, 70)
 
         self.setLayout(self.layout)
