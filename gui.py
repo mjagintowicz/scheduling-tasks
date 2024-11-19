@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDat
     QTabWidget, QDialog, QDialogButtonBox, QGridLayout
 from PyQt6.QtCore import Qt, QDate, QTime, QTimer
 from PyQt6.QtGui import QFont
+from datetime import timedelta
 
 from calendar_functions import *
 from model_params import Task
@@ -313,7 +314,7 @@ class TaskWindow(QDialog):
             begin_date_time, end_date_time = get_time_limits(begin_dates[i].date(), end_dates[i].date(),
                                                              begin_times[i].time(), end_times[i].time())
 
-            if begin_date_time >= end_date_time:
+            if begin_date_time + timedelta(minutes=self.parent.tasks[i].duration) > end_date_time:
                 dlg = DialogWindow("Niepowodzenie!", "Sprawdź poprawność wprowadzonych terminów.")
                 dlg.exec()
                 break
