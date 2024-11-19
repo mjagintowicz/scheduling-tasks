@@ -143,8 +143,8 @@ class TaskTab(QWidget):
             dlg.exec()  # jeśli podany jest zły przedział czasowy - komunikat o błędzie
 
         else:
-            self.parent.T_begin, self.parent.T_end = get_schedule_limits(self.begin_date.date(), self.end_date.date(),
-                                                                         self.begin_time.time(), self.end_time.time())
+            self.parent.T_begin, self.parent.T_end = get_time_limits(self.begin_date.date(), self.end_date.date(),
+                                                                     self.begin_time.time(), self.end_time.time())
             self.parent.tasks, self.parent.tasks_obtained = get_tasks_from_calendar(self.parent.T_begin,
                                                                                     self.parent.T_end)
 
@@ -218,6 +218,10 @@ class TaskWindow(QDialog):
         self.ok_layout = QHBoxLayout()
 
         if self.parent.tasks_obtained:
+            begin_dates = []    # listy zapisujące daty
+            end_dates = []
+            begin_times = []
+            end_times = []
             for task in self.parent.tasks:
 
                 start_layout = QHBoxLayout()
@@ -231,21 +235,25 @@ class TaskWindow(QDialog):
 
                 begin_date = QDateEdit()
                 begin_date.setCalendarPopup(True)
-                begin_date.setDate(self.parent.T_begin)
+                begin_date.setDate(QDate(task.window_left.year, task.window_left.month, task.window_left.day))
                 begin_date.setFixedSize(100, 30)
+                begin_dates.append(begin_date)
 
                 end_date = QDateEdit()
                 end_date.setCalendarPopup(True)
-                end_date.setDate(self.parent.T_end)
+                end_date.setDate(QDate(task.window_right.year, task.window_right.month, task.window_right.day))
                 end_date.setFixedSize(100, 30)
+                end_dates.append(end_date)
 
                 begin_time = QTimeEdit()
-                begin_time.setTime(QTime(self.parent.T_begin.hour, self.parent.T_begin.minute))
+                begin_time.setTime(QTime(task.window_left.hour, task.window_left.minute))
                 begin_time.setFixedSize(80, 30)
+                begin_times.append(begin_time)
 
                 end_time = QTimeEdit()
-                end_time.setTime(QTime(self.parent.T_end.hour, self.parent.T_end.minute))
+                end_time.setTime(QTime(task.window_right.hour, task.window_right.minute))
                 end_time.setFixedSize(80, 30)
+                end_times.append(end_time)
 
                 start_layout.addWidget(begin_date)
                 start_layout.addWidget(begin_time)
@@ -265,9 +273,9 @@ class TaskWindow(QDialog):
             self.data_layout.addLayout(self.start_date_time_layout)
             self.data_layout.addLayout(self.end_date_time_layout)
 
-            ok_button = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
-            ok_button.accepted.connect(self.accept)
-            # button akceptuje wprowadzone dane i tworzy z nich obiekty typu Task
+            # przycisk zatwierdzający zmienione daty/godziny
+            ok_button = QPushButton("Zatwierdź")
+            ok_button.clicked.connect(lambda: self.task_data_update(begin_dates, begin_times, end_dates, end_times))
 
             self.layout.addLayout(self.data_layout, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
             self.layout.addWidget(ok_button, 1, 0, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -288,3 +296,32 @@ class TaskWindow(QDialog):
             self.setFixedSize(200, 70)
 
         self.setLayout(self.layout)
+
+    def task_data_update(self, begin_dates, begin_times, end_dates, end_times):
+
+        """
+        Metoda aktualizująca okna czasowe zadań.
+        :param begin_dates: lista dat rozpoczęcia
+        :param begin_times: lista godzin rozpoczęcia
+        :param end_dates: lista dat zakończenia
+        :param end_times: lista godzin zakończenia
+        :return: NIC
+        """
+        cnt = 0
+        for i in range(len(self.parent.tasks)):
+
+            begin_date_time, end_date_time = get_time_limits(begin_dates[i].date(), end_dates[i].date(),
+                                                             begin_times[i].time(), end_times[i].time())
+
+            if begin_date_time >= end_date_time:
+                dlg = DialogWindow("Niepowodzenie!", "Sprawdź poprawność wprowadzonych terminów.")
+                dlg.exec()
+                break
+
+            else:
+                cnt += 1
+                self.parent.tasks[i].set_time_windows(begin_date_time, end_date_time)
+
+        if cnt == len(self.parent.tasks):
+            dlg = DialogWindow("Sukces!", "Terminy zostały zaktualizowane.")
+            dlg.exec()

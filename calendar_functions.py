@@ -47,7 +47,7 @@ def access_calendar(calendar_id: str = 'primary') -> GoogleCalendar | None:
         return gc
 
 
-def get_schedule_limits(begin_date: QDate(), end_date: QDate(), begin_time: QTime(), end_time: QTime())\
+def get_time_limits(begin_date: QDate(), end_date: QDate(), begin_time: QTime(), end_time: QTime())\
         -> Tuple[BeautifulDate, BeautifulDate]:
 
     """

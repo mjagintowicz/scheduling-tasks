@@ -16,7 +16,7 @@ class Task:
         self.opening_hours = None  # godziny pracy
         self.closing_hours = None
 
-        self.window_left = window_left  # dodatkowe ograniczenia zawężające okres czasu na realizację
+        self.window_left = window_left  # dodatkowe ograniczenia zawężające okres na realizację
         self.window_right = window_right
 
         self.start_date_time = None  # ustalony czas rozpoczęcia i zakończenia zadania
