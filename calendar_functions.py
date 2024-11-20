@@ -2,8 +2,8 @@
 
 import datetime
 import os.path
-
 from typing import Tuple, List
+import pickle
 
 #from google.auth.transport.requests import Request
 #from google.oauth2.credentials import Credentials
@@ -29,22 +29,25 @@ def access_calendar(calendar_id: str = 'primary') -> GoogleCalendar | None:
     """
     Uzyskanie dostępu do kalendarza Google (logowanie).
 
-    :param calendar_id: email lub nazwa/id kalendarza, domyślnie primary calendar
+    :param calendar_id: email lub nazwa/id kalendarza, domyślnie primary
     :return: obiekt GoogleCalendar reprezentujący wybrany kalendarz lub None, gdy logowanie się nie powiodło
     """
 
     gc = None
 
     if os.path.exists("token.pickle"):  # jeśli dane logowania zapisane w pliku (nie jest to pierwsze logowanie)
-        gc = GoogleCalendar(default_calendar=calendar_id, credentials_path="credentials.json", token_path="token.pickle")
+        try:
+            gc = GoogleCalendar(default_calendar=calendar_id, credentials_path="credentials.json", token_path="token.pickle")
+            return gc
+        except Exception as err:
+            os.remove("token.pickle")
 
     if not gc:  # jeśli pliku nie ma - logowanie manualne
         gc = GoogleCalendar(default_calendar=calendar_id, credentials_path="credentials.json", save_token=True)
+        return gc
 
     if not gc:  # jaka akcja, jeśli logowanie się nie powiedzie???
         return None
-    else:
-        return gc
 
 
 def get_time_limits(begin_date: QDate(), end_date: QDate(), begin_time: QTime(), end_time: QTime())\
@@ -159,11 +162,16 @@ def find_event(event_id, calendar_id: str = 'primary'):
     event = gc.get_event(event_id)
     return event
 
+
+def log_out():
+    """
+    Funkcja do wylogowywania.
+    :return: NIC
+    """
+    os.remove("token.pickle")
+
 # exception - kiedy token jest nieaktualny
 # albo kasuj go razem z zamknięciem aplikacji
-
-
-
 
 
 

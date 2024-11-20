@@ -70,10 +70,16 @@ class TaskTab(QWidget):
         self.tasks_button.setFont(QFont('Calibri', 25))
         self.tasks_button.clicked.connect(self.display_tasks)
 
+        self.log_out_button = QPushButton('Wyloguj się', self)
+        self.log_out_button.setFixedSize(400, 200)
+        self.log_out_button.setFont(QFont('Calibri', 25))
+        self.log_out_button.clicked.connect(self.clear_data)
+
         # layout do przycisków
         self.button_layout = QVBoxLayout()
         self.button_layout.addWidget(self.start_button)
         self.button_layout.addWidget(self.tasks_button)
+        self.button_layout.addWidget(self.log_out_button)
 
         # wybór dat
         self.begin_date = QDateEdit()
@@ -167,8 +173,27 @@ class TaskTab(QWidget):
                 dlg.exec()
 
     def display_tasks(self):
-
+        """
+        Wyświetlanie okna z zadaniami.
+        :return: NIC
+        """
         dlg = TaskWindow(self.parent)
+        dlg.exec()
+
+    def clear_data(self):
+        """
+        Wylogowanie z konta Google i wyczyszczenie wszystkich danych.
+        :return: NIC
+        """
+        log_out()
+        self.parent.event_ids = []
+        self.parent.tasks_obtained = False
+        self.parent.tasks = []
+        self.parent.T_begin = None
+        self.parent.T_end = None
+        self.parent.modes = []
+        self.parent.transit_modes = []
+        dlg = DialogWindow("Gotowe!", "Wylogowanie zakończone sukcesem. Dane zostały usunięte.")
         dlg.exec()
 
 
@@ -223,9 +248,6 @@ class TaskWindow(QDialog):
         self.start_date_time_layout.addWidget(self.start_label)
         self.end_label = QLabel("NAJPÓŹNIEJSZA DATA I GODZINA ZAKOŃCZENIA")
         self.end_date_time_layout.addWidget(self.end_label)
-        self.fixed_label = QLabel("NIEZMIENNY TERMIN? (ustawia oryginalny termin z kalendarza jako okno czasowe)")
-        self.fixed_layout.addWidget(self.fixed_label)
-
         self.ok_layout = QHBoxLayout()
 
         if self.parent.tasks_obtained:
@@ -233,7 +255,6 @@ class TaskWindow(QDialog):
             end_dates = []
             begin_times = []
             end_times = []
-            checkboxes = []
             for task in self.parent.tasks:
 
                 start_layout = QHBoxLayout()
@@ -272,18 +293,10 @@ class TaskWindow(QDialog):
                 end_layout.addWidget(end_date)
                 end_layout.addWidget(end_time)
 
-                fixed_check = QCheckBox()
-                fixed_check.setFixedHeight(30)
-                checkboxes.append(fixed_check)
-
                 self.names_layout.addWidget(task_name)
                 self.locations_layout.addWidget(task_location)
                 self.start_date_time_layout.addLayout(start_layout)
                 self.end_date_time_layout.addLayout(end_layout)
-                self.fixed_layout.addWidget(fixed_check)
-
-                # nowy layout
-                # checkboxy jeśli zadania mają fixed time (mają być niezmieniane) ale to później
 
             self.data_layout.addLayout(self.names_layout)
             self.data_layout.addLayout(self.locations_layout)
@@ -293,7 +306,7 @@ class TaskWindow(QDialog):
 
             # przycisk zatwierdzający zmienione daty/godziny
             ok_button = QPushButton("Zatwierdź")
-            ok_button.clicked.connect(lambda: self.task_data_update(begin_dates, begin_times, end_dates, end_times, checkboxes))
+            ok_button.clicked.connect(lambda: self.task_data_update(begin_dates, begin_times, end_dates, end_times))
 
             self.layout.addLayout(self.data_layout, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
             self.layout.addWidget(ok_button, 1, 0, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -315,7 +328,7 @@ class TaskWindow(QDialog):
 
         self.setLayout(self.layout)
 
-    def task_data_update(self, begin_dates, begin_times, end_dates, end_times, checkboxes):
+    def task_data_update(self, begin_dates, begin_times, end_dates, end_times):
 
         """
         Metoda aktualizująca okna czasowe zadań.
@@ -323,7 +336,6 @@ class TaskWindow(QDialog):
         :param begin_times: lista godzin rozpoczęcia
         :param end_dates: lista dat zakończenia
         :param end_times: lista godzin zakończenia
-        :param checkboxes: lista checkboxów
         :return: NIC
         """
         cnt = 0
@@ -338,17 +350,6 @@ class TaskWindow(QDialog):
                 break
             else:
                 cnt += 1
-                self.parent.tasks[i].set_time_windows(begin_date_time, end_date_time)
-
-            if checkboxes[i].isChecked():       # czy termin jest ustalony niezmienny
-                self.parent.fixed_info.append(1)
-
-                event_id = self.parent.event_ids[i]     # znajdź id zadania
-                event = find_event(event_id)
-                begin_date_time = event.start
-                begin_date_time = begin_date_time.replace(tzinfo=None)
-                end_date_time = event.end
-                end_date_time = end_date_time.replace(tzinfo=None)
                 self.parent.tasks[i].set_time_windows(begin_date_time, end_date_time)
 
         if cnt == len(self.parent.tasks):
