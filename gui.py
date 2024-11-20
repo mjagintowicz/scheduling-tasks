@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, \
-    QTabWidget, QDialog, QDialogButtonBox, QGridLayout
+    QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox
 from PyQt6.QtCore import Qt, QDate, QTime, QTimer
 from PyQt6.QtGui import QFont
 from datetime import timedelta
@@ -25,10 +25,13 @@ class StartWindow(QMainWindow):
         self.tab_layout = QVBoxLayout()
 
         # zmienne
+        self.event_ids = []     # unikalne id każdego zadania/eventu
         self.tasks_obtained = False  # flaga czy zadania zostały już pobrane
         self.tasks = []  # lista pobranych zadań
         self.T_begin = None  # początek i koniec harmonogramu
         self.T_end = None
+        self.modes = []     # informacje na temat wybranych środków transportu
+        self.transit_modes = []
 
         # zakładki
         self.tabs = QTabWidget()
@@ -39,6 +42,10 @@ class StartWindow(QMainWindow):
         # zakładka 1. - wczytywanie danych
         self.tab1 = TaskTab(self)
         self.tabs.addTab(self.tab1, "Zadania")
+
+        # zakładka 2. - parametry
+        self.tab2 = ParamTab(self)
+        self.tabs.addTab(self.tab2, "Parametry")
 
 
 # WCZYTYWANIE DANYCH
@@ -146,8 +153,8 @@ class TaskTab(QWidget):
         else:
             self.parent.T_begin, self.parent.T_end = get_time_limits(self.begin_date.date(), self.end_date.date(),
                                                                      self.begin_time.time(), self.end_time.time())
-            self.parent.tasks, self.parent.tasks_obtained = get_tasks_from_calendar(self.parent.T_begin,
-                                                                                    self.parent.T_end)
+            self.parent.tasks, self.parent.event_ids, self.parent.tasks_obtained = \
+                get_tasks_from_calendar(self.parent.T_begin, self.parent.T_end)
 
             # w przeciwnym wypadku wywoływanie właściwej funkcji pobierającej dane
             if self.parent.tasks_obtained:  # jeśli dane się pobrały - pokaż info
@@ -200,11 +207,12 @@ class TaskWindow(QDialog):
 
         self.data_layout = QHBoxLayout()
 
-        # 4 layouty (nazwa, lokalizacja, początek, koniec)
+        # 5 layoutow (nazwa, lokalizacja, początek, koniec)
         self.names_layout = QVBoxLayout()
         self.locations_layout = QVBoxLayout()
         self.start_date_time_layout = QVBoxLayout()
         self.end_date_time_layout = QVBoxLayout()
+        self.fixed_layout = QVBoxLayout()
 
         # etykiety
         self.name_label = QLabel("NAZWA")
@@ -215,6 +223,8 @@ class TaskWindow(QDialog):
         self.start_date_time_layout.addWidget(self.start_label)
         self.end_label = QLabel("NAJPÓŹNIEJSZA DATA I GODZINA ZAKOŃCZENIA")
         self.end_date_time_layout.addWidget(self.end_label)
+        self.fixed_label = QLabel("NIEZMIENNY TERMIN? (ustawia oryginalny termin z kalendarza jako okno czasowe)")
+        self.fixed_layout.addWidget(self.fixed_label)
 
         self.ok_layout = QHBoxLayout()
 
@@ -223,6 +233,7 @@ class TaskWindow(QDialog):
             end_dates = []
             begin_times = []
             end_times = []
+            checkboxes = []
             for task in self.parent.tasks:
 
                 start_layout = QHBoxLayout()
@@ -261,10 +272,15 @@ class TaskWindow(QDialog):
                 end_layout.addWidget(end_date)
                 end_layout.addWidget(end_time)
 
+                fixed_check = QCheckBox()
+                fixed_check.setFixedHeight(30)
+                checkboxes.append(fixed_check)
+
                 self.names_layout.addWidget(task_name)
                 self.locations_layout.addWidget(task_location)
                 self.start_date_time_layout.addLayout(start_layout)
                 self.end_date_time_layout.addLayout(end_layout)
+                self.fixed_layout.addWidget(fixed_check)
 
                 # nowy layout
                 # checkboxy jeśli zadania mają fixed time (mają być niezmieniane) ale to później
@@ -273,10 +289,11 @@ class TaskWindow(QDialog):
             self.data_layout.addLayout(self.locations_layout)
             self.data_layout.addLayout(self.start_date_time_layout)
             self.data_layout.addLayout(self.end_date_time_layout)
+            self.data_layout.addLayout(self.fixed_layout)
 
             # przycisk zatwierdzający zmienione daty/godziny
             ok_button = QPushButton("Zatwierdź")
-            ok_button.clicked.connect(lambda: self.task_data_update(begin_dates, begin_times, end_dates, end_times))
+            ok_button.clicked.connect(lambda: self.task_data_update(begin_dates, begin_times, end_dates, end_times, checkboxes))
 
             self.layout.addLayout(self.data_layout, 0, 0, alignment=Qt.AlignmentFlag.AlignCenter)
             self.layout.addWidget(ok_button, 1, 0, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -298,7 +315,7 @@ class TaskWindow(QDialog):
 
         self.setLayout(self.layout)
 
-    def task_data_update(self, begin_dates, begin_times, end_dates, end_times):
+    def task_data_update(self, begin_dates, begin_times, end_dates, end_times, checkboxes):
 
         """
         Metoda aktualizująca okna czasowe zadań.
@@ -306,6 +323,7 @@ class TaskWindow(QDialog):
         :param begin_times: lista godzin rozpoczęcia
         :param end_dates: lista dat zakończenia
         :param end_times: lista godzin zakończenia
+        :param checkboxes: lista checkboxów
         :return: NIC
         """
         cnt = 0
@@ -318,11 +336,118 @@ class TaskWindow(QDialog):
                 dlg = DialogWindow("Niepowodzenie!", "Sprawdź poprawność wprowadzonych terminów.")
                 dlg.exec()
                 break
-
             else:
                 cnt += 1
+                self.parent.tasks[i].set_time_windows(begin_date_time, end_date_time)
+
+            if checkboxes[i].isChecked():       # czy termin jest ustalony niezmienny
+                self.parent.fixed_info.append(1)
+
+                event_id = self.parent.event_ids[i]     # znajdź id zadania
+                event = find_event(event_id)
+                begin_date_time = event.start
+                begin_date_time = begin_date_time.replace(tzinfo=None)
+                end_date_time = event.end
+                end_date_time = end_date_time.replace(tzinfo=None)
                 self.parent.tasks[i].set_time_windows(begin_date_time, end_date_time)
 
         if cnt == len(self.parent.tasks):
             dlg = DialogWindow("Sukces!", "Terminy zostały zaktualizowane.")
             dlg.exec()
+
+
+# PARAMETRY ALGORYTMU ITP.
+class ParamTab(QWidget):
+
+    def __init__(self, parent: StartWindow):
+
+        super(ParamTab, self).__init__()
+
+        self.parent = parent
+
+        self.layout = QHBoxLayout()
+
+        # checkboxy
+        self.travel_tabel = QLabel("Metody transportu:")
+
+        self.check_walking = QCheckBox("Pieszo")
+        self.check_walking.stateChanged.connect(lambda: self.update_travel("walking"))
+        self.check_driving = QCheckBox("Samochód")
+        self.check_driving.stateChanged.connect(lambda: self.update_travel("driving"))
+        self.check_bus = QCheckBox("Autobus")
+        self.check_bus.stateChanged.connect(lambda: self.update_travel("bus"))
+        self.check_tram = QCheckBox("Tramwaj")
+        self.check_tram.stateChanged.connect(lambda: self.update_travel("tram"))
+        self.check_rail = QCheckBox("Kolej")
+        self.check_rail.stateChanged.connect(lambda: self.update_travel("rail"))
+        self.check_bike = QCheckBox("Rower")
+        self.check_bike.stateChanged.connect(lambda: self.update_travel("bicycle"))
+
+        # layout na checkboxy
+        self.travel_layout = QVBoxLayout()
+        self.travel_layout.addWidget(self.travel_tabel)
+        self.travel_layout.addWidget(self.check_walking)
+        self.travel_layout.addWidget(self.check_driving)
+        self.travel_layout.addWidget(self.check_bus)
+        self.travel_layout.addWidget(self.check_tram)
+        self.travel_layout.addWidget(self.check_rail)
+        self.travel_layout.addWidget(self.check_bike)
+
+        self.layout.addLayout(self.travel_layout)
+        self.setLayout(self.layout)
+
+    def update_travel(self, mode):
+
+        """
+        Metoda do zapisywania wybranych metod transportu.
+        :param mode: wybrana metoda transportu
+        :return: NIC
+        """
+
+        if mode == "walking":
+            if self.check_walking.isChecked():
+                self.parent.modes.append(mode)
+            else:
+                self.parent.modes.remove(mode)
+
+        elif mode == "driving":
+            if self.check_driving.isChecked():
+                self.parent.modes.append(mode)
+            else:
+                self.parent.modes.remove(mode)
+
+        elif mode == "bicycle":
+            if self.check_bike.isChecked():
+                self.parent.modes.append(mode)
+            else:
+                self.parent.modes.remove(mode)
+
+        elif mode == "bus":
+            if self.check_bus.isChecked():
+                if "transit" not in self.parent.modes:
+                    self.parent.modes.append("transit")
+                self.parent.transit_modes.append(mode)
+            else:
+                if not self.check_tram.isChecked() and not self.check_rail.isChecked():
+                    self.parent.modes.remove("transit")
+                self.parent.transit_modes.remove(mode)
+
+        elif mode == "tram":
+            if self.check_tram.isChecked():
+                if "transit" not in self.parent.modes:
+                    self.parent.modes.append("transit")
+                self.parent.transit_modes.append(mode)
+            else:
+                if not self.check_bus.isChecked() and not self.check_rail.isChecked():
+                    self.parent.modes.remove("transit")
+                self.parent.transit_modes.remove(mode)
+
+        elif mode == "rail":
+            if self.check_rail.isChecked():
+                if "transit" not in self.parent.modes:
+                    self.parent.modes.append("transit")
+                self.parent.transit_modes.append(mode)
+            else:
+                if not self.check_bus.isChecked() and not self.check_tram.isChecked():
+                    self.parent.modes.remove("transit")
+                self.parent.transit_modes.remove(mode)

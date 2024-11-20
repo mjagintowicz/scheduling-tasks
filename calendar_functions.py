@@ -94,7 +94,7 @@ def task_2_event(task: Task) -> Event:
     return event
 
 
-def get_tasks_from_calendar(begin_date_time: BeautifulDate, end_date_time: BeautifulDate, calendar_id: str = 'primary') -> Tuple[List[Task], bool]:
+def get_tasks_from_calendar(begin_date_time: BeautifulDate, end_date_time: BeautifulDate, calendar_id: str = 'primary'):
 
     """
     Pobieranie zadań z kalendarza w wybranym zakresie czasu.
@@ -112,11 +112,13 @@ def get_tasks_from_calendar(begin_date_time: BeautifulDate, end_date_time: Beaut
 
     events = list(gc.get_events(time_min=begin_date_time, time_max=end_date_time))  # pobranie listy zdarzeń
     tasks = []
+    event_ids = []
 
     for event in events:    # konwersja zdarzeń do zadań
+        event_ids.append(event.event_id)
         tasks.append(event_2_task(event, begin_date_time, end_date_time))
 
-    return tasks, True
+    return tasks, event_ids, True
 
 
 def add_task_to_calendar(task: Task, calendar_id: str = 'primary') -> bool:
@@ -142,6 +144,20 @@ def add_task_to_calendar(task: Task, calendar_id: str = 'primary') -> bool:
 
     return True
 
+
+def find_event(event_id, calendar_id: str = 'primary'):
+
+    """
+    Znajdowanie eventu po id.
+    :param event_id: id
+    :param calendar_id: id kalendarza, domyślnie primary
+    :return: event
+    """
+
+    gc = access_calendar(calendar_id)
+
+    event = gc.get_event(event_id)
+    return event
 
 # exception - kiedy token jest nieaktualny
 # albo kasuj go razem z zamknięciem aplikacji
