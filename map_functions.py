@@ -36,24 +36,38 @@ def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
     closing_hours = []
 
     pattern = r'\d+:\d+\s(?:A|P)M'  # wzorzec, do którego ma być dopasowany tekst
+    hour_pattern = r'\d+:\d+'
+    am_pm_pattern = r'(?:A|P)M'
+    pattern_12 = r'12:\d+'
 
     for data in weekday_text:  # dla każdego dnia tygodnia
         data = data.replace('\u2009', "")
         matches = findall(pattern, data)  # znajdź godziny pracy w napisie
 
+        # przypadek jeśli matchuje tylko 1. godzinę (bo z jakiegoś powodu tak może być)
+        if len(matches) == 1:
+            hour_matches = findall(hour_pattern, data)
+            am_pm_match = findall(am_pm_pattern, data)
+            matches = []
+            for hour_match in hour_matches:
+                matches.append(hour_match+'\u202f'+am_pm_match[0])
+
+
         if matches:  # jeśli są
 
             opening_hour, opening_a_p = matches[0].split('\u202f')  # kowersja godzin do wybranego formatu
-            if opening_a_p == 'PM':
+            matches_12 = findall(pattern_12, opening_hour)      # czy jest między 12:00 a 12:59
+            if opening_a_p == 'PM' and not matches_12:
                 new_time = datetime.strptime(opening_hour, '%H:%M')
                 new_time = new_time + timedelta(hours=12)
                 opening_hour = new_time.strftime('%H:%M')
 
             opening_hours.append(opening_hour)  # dodanie godziny do listy godzin otwarcia
 
-            # analogicznie dla godzin zamknięcia
+            # analogicznie dla godzin zamknięcia (przypadek, że zamyka się następnego dnia)
             closing_hour, closing_a_p = matches[1].split('\u202f')
-            if closing_a_p == 'PM':
+            matches_12 = findall(pattern_12, closing_hour)
+            if (closing_a_p == 'PM' and not matches_12) or (closing_a_p == 'AM' and matches_12):
                 new_time = datetime.strptime(closing_hour, '%H:%M')
                 new_time = new_time + timedelta(hours=12)
                 closing_hour = new_time.strftime('%H:%M')
