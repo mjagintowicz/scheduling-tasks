@@ -1,11 +1,13 @@
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, \
-    QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox
+    QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox, QLineEdit
 from PyQt6.QtCore import Qt, QDate, QTime, QTimer
 from PyQt6.QtGui import QFont
 from datetime import timedelta
 
 from calendar_functions import *
 from model_params import Task
+from init_heuristic import initial_solution, create_depot
+from map_functions import *
 
 
 # OKNO STARTOWE
@@ -32,6 +34,7 @@ class StartWindow(QMainWindow):
         self.T_end = None
         self.modes = []     # informacje na temat wybranych środków transportu
         self.transit_modes = []
+        self.solution = {}
 
         # zakładki
         self.tabs = QTabWidget()
@@ -394,7 +397,17 @@ class ParamTab(QWidget):
         self.travel_layout.addWidget(self.check_rail)
         self.travel_layout.addWidget(self.check_bike)
 
+        # przycisk rozpoczęcia algorytmu
+        self.algorithm_button = QPushButton("Alogrytm")
+        self.algorithm_button.clicked.connect(self.generate_initial_solution)
+        self.depot_location = QLineEdit("Lokalizacja bazy:")
+
+        self.button_layout = QVBoxLayout()
+        self.button_layout.addWidget(self.algorithm_button)
+        self.button_layout.addWidget(self.depot_location)
+
         self.layout.addLayout(self.travel_layout)
+        self.layout.addLayout(self.button_layout)
         self.setLayout(self.layout)
 
     def update_travel(self, mode):
@@ -452,3 +465,20 @@ class ParamTab(QWidget):
                 if not self.check_bus.isChecked() and not self.check_tram.isChecked():
                     self.parent.modes.remove("transit")
                 self.parent.transit_modes.remove(mode)
+
+    def generate_initial_solution(self):
+        """
+        Generacja rozwiązania początkowego (inicjalizacja).
+        :return:
+        """
+
+        if not self.parent.T_begin or not self.parent.T_end or not self.parent.tasks_obtained:
+            dlg = DialogWindow("Błąd!", "Pobierz zadania z kalendarza.")
+            dlg.exec()
+        elif validate_location(self.depot_location.text()):
+            depot = create_depot(self.depot_location.text(), self.parent.T_begin, self.parent.T_end)
+            self.parent.tasks.insert(0, depot)
+            self.parent.solution = initial_solution(self.parent.T_begin, self.parent.T_end, self.parent.tasks, self.parent.modes)       # na razie testy tylko dla walking
+        else:
+            dlg = DialogWindow("Błąd!", "Podaj poprawny adres startowy.")
+            dlg.exec()

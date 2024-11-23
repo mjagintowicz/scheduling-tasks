@@ -177,5 +177,5 @@ class Task:
 
 
 
-task = Task("test", 120, "BarON - Pub z planszówkami i konsolami w Krakowie", (D @ 12 / 11 / 2024)[8:00], (D @ 14 / 12 / 2024)[8:00])
-print(task.get_waiting_time((D @ 23 / 11 / 2024)[17:30]))
+#task = Task("test", 120, "BarON - Pub z planszówkami i konsolami w Krakowie", (D @ 12 / 11 / 2024)[8:00], (D @ 14 / 12 / 2024)[8:00])
+#print(task.get_waiting_time((D @ 23 / 11 / 2024)[17:30]))

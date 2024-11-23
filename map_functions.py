@@ -18,7 +18,6 @@ gmaps = googlemaps.Client(key=my_key)  # nowy klient
 
 
 def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
-
     """
     Funkcja do uzyskania informacji na temat godzin pracy wybranej lokalizacji.
     :param name: nazwa miejsca - oczekiwany precyzyjny adres/unikatowa nazwa w celu jednoznacznej identyfikacji miejsca
@@ -29,60 +28,65 @@ def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
     place_id = gmaps.places(name)['results'][0]['place_id']
 
     # wybór informacji na temat godzin otwarcia
-    weekday_text = gmaps.place(place_id)['result']['current_opening_hours']['weekday_text']
 
-    # wybór odpowiednich danych z str
-    opening_hours = []
-    closing_hours = []
+    result = gmaps.place(place_id)['result']
+    if 'current_opening_hours' in result:
+        weekday_text = gmaps.place(place_id)['result']['current_opening_hours']['weekday_text']
 
-    pattern = r'\d+:\d+\s(?:A|P)M'  # wzorzec, do którego ma być dopasowany tekst
-    hour_pattern = r'\d+:\d+'
-    am_pm_pattern = r'(?:A|P)M'
-    pattern_12 = r'12:\d+'
+        # wybór odpowiednich danych z str
+        opening_hours = []
+        closing_hours = []
 
-    for data in weekday_text:  # dla każdego dnia tygodnia
-        data = data.replace('\u2009', "")
-        matches = findall(pattern, data)  # znajdź godziny pracy w napisie
+        pattern = r'\d+:\d+\s(?:A|P)M'  # wzorzec, do którego ma być dopasowany tekst
+        hour_pattern = r'\d+:\d+'
+        am_pm_pattern = r'(?:A|P)M'
+        pattern_12 = r'12:\d+'
 
-        # przypadek jeśli matchuje tylko 1. godzinę (bo z jakiegoś powodu tak może być)
-        if len(matches) == 1:
-            hour_matches = findall(hour_pattern, data)
-            am_pm_match = findall(am_pm_pattern, data)
-            matches = []
-            for hour_match in hour_matches:
-                matches.append(hour_match+'\u202f'+am_pm_match[0])
+        for data in weekday_text:  # dla każdego dnia tygodnia
+            data = data.replace('\u2009', "")
+            matches = findall(pattern, data)  # znajdź godziny pracy w napisie
 
+            # przypadek jeśli matchuje tylko 1. godzinę (bo z jakiegoś powodu tak może być)
+            if len(matches) == 1:
+                hour_matches = findall(hour_pattern, data)
+                am_pm_match = findall(am_pm_pattern, data)
+                matches = []
+                for hour_match in hour_matches:
+                    matches.append(hour_match+'\u202f'+am_pm_match[0])
 
-        if matches:  # jeśli są
+            if matches:  # jeśli są
 
-            opening_hour, opening_a_p = matches[0].split('\u202f')  # kowersja godzin do wybranego formatu
-            matches_12 = findall(pattern_12, opening_hour)      # czy jest między 12:00 a 12:59
-            if opening_a_p == 'PM' and not matches_12:
-                new_time = datetime.strptime(opening_hour, '%H:%M')
-                new_time = new_time + timedelta(hours=12)
-                opening_hour = new_time.strftime('%H:%M')
+                opening_hour, opening_a_p = matches[0].split('\u202f')  # kowersja godzin do wybranego formatu
+                matches_12 = findall(pattern_12, opening_hour)      # czy jest między 12:00 a 12:59
+                if opening_a_p == 'PM' and not matches_12:
+                    new_time = datetime.strptime(opening_hour, '%H:%M')
+                    new_time = new_time + timedelta(hours=12)
+                    opening_hour = new_time.strftime('%H:%M')
 
-            opening_hours.append(opening_hour)  # dodanie godziny do listy godzin otwarcia
+                opening_hours.append(opening_hour)  # dodanie godziny do listy godzin otwarcia
 
-            # analogicznie dla godzin zamknięcia (przypadek, że zamyka się następnego dnia)
-            closing_hour, closing_a_p = matches[1].split('\u202f')
-            matches_12 = findall(pattern_12, closing_hour)
-            if (closing_a_p == 'PM' and not matches_12) or (closing_a_p == 'AM' and matches_12):
-                new_time = datetime.strptime(closing_hour, '%H:%M')
-                new_time = new_time + timedelta(hours=12)
-                closing_hour = new_time.strftime('%H:%M')
+                # analogicznie dla godzin zamknięcia (przypadek, że zamyka się następnego dnia)
+                closing_hour, closing_a_p = matches[1].split('\u202f')
+                matches_12 = findall(pattern_12, closing_hour)
+                if closing_a_p == 'PM' and not matches_12:
+                    new_time = datetime.strptime(closing_hour, '%H:%M')
+                    new_time = new_time + timedelta(hours=12)
+                    closing_hour = new_time.strftime('%H:%M')
 
-            closing_hours.append(closing_hour)
+                closing_hours.append(closing_hour)
 
-        else:  # jeśli brak dopasowań przyjęte założenie, że miejsce jest zamknięte
-            opening_hours.append('-')
-            closing_hours.append('-')
+            else:  # jeśli brak dopasowań przyjęte założenie, że miejsce jest zamknięte
+                opening_hours.append('-')
+                closing_hours.append('-')
+
+    else:
+        opening_hours = 7*["00:00"]
+        closing_hours = 7*["00:00"]
 
     return opening_hours, closing_hours
 
 
 def time_pattern_match(distance_time_str: str) -> int:
-
     """
     Konwersja tekstu z wartością czasu na odpowiadającą mu liczbę minut (int).
     :param distance_time_str: tekst z czasem po angielsku (np. 1 day 2 horus)
@@ -109,7 +113,6 @@ def time_pattern_match(distance_time_str: str) -> int:
 
 
 def iterate_through_matrix(rows: List) -> List[List[int]]:
-
     """
     Funkcja pomocnicza do iterowania po rzędach macierzy odległości zwróconej przez klienta Pythona.
     :param rows: rzędzy macierzy odległości
@@ -140,7 +143,6 @@ def iterate_through_matrix(rows: List) -> List[List[int]]:
 
 
 def get_fare(rows: List) -> List[List[int]]:
-
     """
     Uzyskanie informacji na temat kosztów biletów.
     :param rows: rzędy macierzy odległości
@@ -174,7 +176,6 @@ def get_fare(rows: List) -> List[List[int]]:
 
 def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_modes: List[str] = None,
                                departure_time: BeautifulDate = D.now()):
-
     """
     Uzyskanie macierzy odległości i macierzy kosztów.
     :param locations: lista lokalizacji (wierzchołki grafu)
@@ -215,7 +216,6 @@ def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_m
 
 def get_transit_route_details(origin: str, destination: str, transit_mode: str,
                               departure_time: BeautifulDate = D.now()) -> List[Tuple]:
-
     """
     Uzyskanie dodatkowych informacji na temat trasy komunikacji miejskiej.
     :param origin: początek trasy
@@ -257,3 +257,16 @@ def get_transit_route_details(origin: str, destination: str, transit_mode: str,
         route_details.append(step_info)
 
     return route_details
+
+
+def validate_location(location: str):
+    """
+    Weryfikacja lokalizacji na podstawie tego, czy jej współrzędne są znajdowane na mapie
+    :param location: nazwa lokalizacji
+    :return: tak/nie
+    """
+
+    validation = gmaps.addressvalidation(location)['result']
+    if 'geocode' in validation:
+        return True
+    return False
