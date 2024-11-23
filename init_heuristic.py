@@ -109,7 +109,7 @@ def get_available_nearest(task_inx: int, matrixes: List[List], tasks: List[Task]
         while True:
             next_task_inx, best_result = get_nearest(task_inx, matrix_tmp, tasks, current_time)  # znalezenie najbliższej lokalizacji
 
-            if next_task_inx == inf:  # jeśli takiej nie ma - stop
+            if best_result == inf:  # jeśli takiej nie ma - stop
                 best_inxs.append(inf)
                 best_results.append(inf)
                 break
@@ -146,6 +146,16 @@ def tasks_available(tasks, finished, current_time):
 def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[Task], travel_modes: List[str],
                      transit_modes: List[str] = []):  # (depot musi być w liście też)
 
+    """
+    Generacja rozwiązania początkowego.
+    :param T_begin: początek harmongramu
+    :param T_end: koniec harmonogramu
+    :param tasks: lista zadań
+    :param travel_modes: lista możliwych metod transportu
+    :param transit_modes: lista możliwej komunikacji miejskiej
+    :return: rozwiązanie!
+    """
+
     solution = {}
 
     current_time = T_begin  # obecna chwila
@@ -156,8 +166,8 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
     while True:  # tworzenie trasy w 1 dniu
         current_task = depot
         current_task_inx = tasks.index(current_task)
-        routes = []  # trasa w ciągu dnia (lista kursów)
         route = [current_task]  # kokretny kurs
+        route_start_time = current_time
 
         while True:  # tworzenie konkretnego kursu
             # SPR WARUNEK SAMOCHODU/ROWERU
@@ -170,7 +180,11 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
 
             next_task_inx, matrix_inx = get_available_nearest(current_task_inx, matrixes, tasks, current_time, finished)  # wybór indeksu najbliższego zadania
             # co zrobić jeśli zadanie skończy się następnego dnia? chyba kurs można dalej kontynuować?
-            if next_task_inx == inf:  # jeśli nie ma już nic odwiedzenia - zakończ kurs
+            if next_task_inx == inf or not tasks_available(tasks, finished, current_time):  # jeśli nie ma już nic odwiedzenia - zakończ kurs
+                current_time = current_time + 24 * hours  # update daty
+                current_time = (D @ current_time.day / current_time.month / current_time.year)[00:00]
+                if len(route) != 1:  # jeśli droga faktycznie powstała, to ją zapisz
+                    solution[route_start_time] = route
                 break
             elif route_end_valid(current_task_inx, next_task_inx, matrixes, tasks, current_time):  # jeśli opłacalny powrót do bazy
                 # update czasu na powrót do bazy
@@ -181,24 +195,29 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                 # przypadki, że transit...
                 tasks[next_task_inx].travel_method = travel_modes[matrix_inx]
                 travel_time = matrixes[matrix_inx][current_task_inx][next_task_inx]
+                # czas start/end jest zły, bo skoro okno jest od 14 do 18.30 to powinno sie to ustawic
+                # najblizszy task -> sprawdz czy jest available_now, jak tak to czas tak jak teraz, jak jeszcze nie to trzeba sprawdzic od opening hour
+                # tylko tutaj to robić czy w funkcji szukającej - chyba tu by to miało wiecej sensu
                 start_time = current_time+travel_time*minutes
                 end_time = start_time + tasks[next_task_inx].duration * minutes
                 tasks[next_task_inx].set_start_end_date_time(start_time, end_time)
+                if (len(route)) == 1:       # jeśli jest to pierwsze zadanie w kursie - zapis czasu rozpoczęcia kursu
+                    route_start_time = start_time
                 route.append(tasks[next_task_inx])  # jeśli neighbour jest ok - dodaj go do kursu
 
                 finished.append(next_task_inx)  # zapisz indeks zadania w wykonanych
                 current_time = end_time         # udpate czasu
                 current_task_inx = next_task_inx    # udpate ostatniego zadania
 
-        routes.append(route)  # zapisz kurs do trasy
+            if not tasks_available(tasks, finished, current_time):      # sprawdzenie czy kurs można kontynuować - jeśli nie
+                current_time = current_time + 24 * hours  # update daty
+                current_time = (D @ current_time.day / current_time.month / current_time.year)[00:00]
+                solution[route_start_time] = route
+                break
 
-        if not tasks_available(tasks, finished, current_time):  # jeśli już nie ma już dostępnych tasków dziś
-            current_time = current_time + 24*hours  # update daty
-            current_time = (D @ current_time.day / current_time.month / current_time.year)[00:00]
-            solution[current_time] = route  # zapisz trasę w rozwiązaniu (czas jest zły w rozwiazaniu, bo to już nowy)
-            # powrot do bazy, reset kursu
 
-        else:  # jeśli są taski, to nową trasę
-            continue
+
+        if len(finished) == len(tasks) or current_time >= T_end:     # jeśli wszystkie zadania zostały już wykonane albo czas przekroczony
+            break
 
     return solution

@@ -120,8 +120,12 @@ class Task:
         """
 
         # sprawdzenie czy dany dzień jest w oknie czasowym
-        if date_time < self.window_left or date_time + timedelta(minutes=self.duration) > self.window_right:
+        date_time_plus = date_time + self.duration*minutes
+        if date_time.day < self.window_left.day:    # czy jest to ten sam dzien
             return False
+
+        if date_time_plus > self.window_right:
+            return False # error
 
         # sprawdzenie czy w tym dniu tygodnia miejsce jest otwarte
         if not self.opening_hours or not self.closing_hours:
