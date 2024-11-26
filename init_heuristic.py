@@ -61,7 +61,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
     ends = []
     return_times = []
 
-    # utworzenie listy ze wszystkimi środkami transportu
+    # utworzenie listy ze wszystkimi środkami transportu (to sie robi w f glownej)
     all_modes = []
     for mode in travel_modes:
         if mode == 'transit':
@@ -83,10 +83,10 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
             return_time = matrix[task_inx][0]
             current_time += return_time * minutes
             # wyznaczenie potencjalnego najbliższego zadania po powrocie
-            next_task_inx, matrix_inx = get_available_nearest(0, matrixes, tasks, current_time, finished)
+            next_task_inx_tmp, matrix_inx = get_available_nearest(0, matrixes, tasks, current_time, finished)
 
             # jeśli nie ma zadań na ten dzień
-            if next_task_inx == inf:
+            if next_task_inx_tmp == inf:
                 # należy sprawdzić, co się stało z next_task - czy będzie dostępne innego dnia?
                 # przekroczenie okna czasowego - nie dobrze
                 window_right = tasks[next_task_inx].window_right
@@ -113,9 +113,9 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
 
             # znalezione zostało potencjalne następne zadanie w trasie
             else:
-                waiting_time = tasks[next_task_inx].get_waiting_time(current_time)  # czas oczekiwania na zadanie
+                waiting_time = tasks[next_task_inx_tmp].get_waiting_time(current_time)  # czas oczekiwania na zadanie
                 # wyznaczenie nowej macierzy odległości (ew. kosztu), rozmiar 4x4 (baza, next_task)
-                locations = [tasks[0].location, tasks[next_task_inx].location]
+                locations = [tasks[0].location, tasks[next_task_inx_tmp].location]
                 matrix_inx = matrixes.index(matrix)
                 if all_modes[matrix_inx] in ['bus', 'tram', 'rail']:
                     travel_mode = ['transit']
@@ -129,12 +129,10 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
 
                 if waiting_time - travel_time < 90:     # nie opłaca się wracać do bazy
                     ends.append(False)
-                    matrix_inxs.append(inf)
                     return_times.append(inf)
                 else:
                     ends.append(True)           # opłaca się wracać
                     matrix_inx = matrixes.index(matrix)
-                    matrix_inxs.append(matrix_inx)
                     return_times.append(return_time)
 
     # wybor minimalnego jeśli jest jakiś true, że faktycznie warto wrocic
@@ -302,7 +300,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                     depot_last.start_date_time = start_time
                     route.append(depot_last)     # dołączenie bazy jako przystanka końcowego
                     solution[route_start_time] = route
-                break
+                    break
             else:  # jeśli wybór zadania był valid
                 # zapisanie czasu rozpoczęcia i zakończenia
                 # przypadki, że transit...
@@ -310,6 +308,15 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                 travel_time = matrixes[matrix_inx][current_task_inx][next_task_inx]
                 start_time = current_time+travel_time * minutes
                 waiting_time = tasks[next_task_inx].get_waiting_time(start_time)    # czas oczekiwania
+                if waiting_time is None:
+                    depot_last = create_depot(depot.location, T_begin, T_end)
+                    travel_time, matrix_inx = get_quickest_return(current_task_inx, matrixes, current_time)
+                    depot_last.travel_method = modes[matrix_inx]
+                    start_time = current_time + travel_time * minutes
+                    depot_last.start_date_time = start_time
+                    route.append(depot_last)
+                    solution[route_start_time] = route  # zapisanie rozwiazania
+                    break
                 if waiting_time != 0:
                     if current_task_inx == 0:       # jeśli jest to wyjazd z bazy - wyjazd jak najpóźniej
                         travel_search_time = current_time + waiting_time * minutes
@@ -317,16 +324,16 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                         start_time = travel_search_time + travel_time * minutes
                     else:   # należy sprawdzić czy zamiast czekania lepiej wrócić
                         # ... SPRAWDZENIE CZY TRAVEL MODES SĄ ZGODNE (CAR, BIKE)
-                        return_time, matrix_inx = route_end_valid(current_task_inx, next_task_inx, tasks, current_time, finished, travel_modes, transit_modes)
+                        return_time, matrix_inx = route_end_valid(current_task_inx, next_task_inx, matrixes, tasks, start_time, finished, travel_modes, transit_modes)
                         if return_time != inf:      # opłacalny powrót!
                             depot_last = create_depot(depot.location, T_begin, T_end)
                             depot_last.travel_method = all_modes[matrix_inx]
-                            start_time = current_time + travel_time * minutes
+                            start_time = current_time + return_time * minutes
                             depot_last.start_date_time = start_time
                             route.append(depot_last)
                             solution[route_start_time] = route  # zakończenie kursu
                             current_task = depot
-                            current_task_inx = tasks.index(current_task)
+                            current_task_inx = 0
                             route = [current_task]
                             # ... czy należy dodać tutaj waiting time as well??? albo chociaż to minimalne 90 min???
                             route_start_time = current_time
@@ -342,7 +349,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                 current_time = end_time         # udpate czasu
                 current_task_inx = next_task_inx    # udpate ostatniego zadania
 
-            if not tasks_available(tasks, finished, current_time):      # sprawdzenie czy kurs można kontynuować - jeśli nie
+            if not tasks_available(tasks, finished, current_time) and len(route) != 1:      # sprawdzenie czy kurs można kontynuować - jeśli nie
                 # powrót do bazy
                 depot_last = create_depot(depot.location, T_begin, T_end)
                 travel_time, matrix_inx = get_quickest_return(current_task_inx, matrixes, current_time)
@@ -352,13 +359,15 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                 route.append(depot_last)
                 solution[route_start_time] = route      # zapisanie rozwiazania
                 break
+            elif len(route) == 1:
+                break
 
         if len(finished) == len(tasks) or current_time >= T_end:     # jeśli wszystkie zadania zostały już wykonane albo czas przekroczony
             break
 
         start_date_only = (D @ start_time.day/start_time.month/start_time.year)[00:00]
         end_date_only = (D @ end_time.day/end_time.month/end_time.year)[00:00]
-        if start_date_only == end_date_only:     # jeśli koniec zadania nastąpił tego samego dnia (w przeciwnym wypadku czas jest kontyunowany)
+        if start_date_only == end_date_only:     # jeśli koniec zadania nastąpił tego samego dnia (w przeciwnym wypadku czas jest kontyunowany)CO JESLI TE DATY SIE NIE NALICZA WCZESNIEJ - CZYMS JE ZASTAPIC
             current_time = current_time + 24 * hours  # update daty przed rozpoczeciem petli nowego dnia
             current_time = (D @ current_time.day / current_time.month / current_time.year)[00:00]
 
@@ -402,18 +411,18 @@ def route_split_valid(solution: Dict[BeautifulDate, List[Task]], travel_modes: L
 
 
 
-depot = create_depot("Juliana Tokarskiego 8, Kraków", (D @ 26/11/2024)[14:00], (D @ 3/12/2024)[22:00])
-task1 = Task("Pracownia", 270, "AGH D2, Czarna Wieś, 30-001 Kraków, Polska", (D @ 2/12/2024)[14:00], (D @ 2/12/2024)[18:30])
-task2 = Task("Gry", 210, "BarON - Pub z planszówkami i konsolami w Krakowie Stefana Batorego 1, 31-135 Kraków, Polska", (D @ 26/11/2024)[18:00], (D @ 27/11/2024)[23:30])
-task3 = Task("Obiad", 60, "IKEA Kraków Josepha Conrada 66, 31-357 Kraków, Polska", (D @ 26/11/2024)[14:00], (D @ 27/11/2024)[16:00])
-task4 = Task("Zakupy", 30, "Biedronka Piastowska 49, 30-211 Kraków, Polska", (D @ 26/11/2024)[14:00], (D @ 2/12/2024)[12:00])
-task5 = Task("Zajęcia", 195, "Wydział Humanistyczny AGH Czarnowiejska 36/Budynek C-7, 30-054 Kraków, Polska", (D @ 28/11/2024)[16:45], (D @ 28/11/2024)[20:00])
-task6 = Task("Odebranie przesyłki", 30, "Galeria Krakowska Pawia 5, 31-154 Kraków, Polska", (D @ 27/11/2024)[11:00], (D @ 29/11/2024)[9:45])
+depot = create_depot("Juliana Tokarskiego 8, Kraków", (D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00])
+task1 = Task("Pracownia", 270, "AGH D2, Czarna Wieś, 30-001 Kraków, Polska", (D @ 9/12/2024)[14:00], (D @ 9/12/2024)[18:30])
+task2 = Task("Gry", 210, "BarON - Pub z planszówkami i konsolami w Krakowie Stefana Batorego 1, 31-135 Kraków, Polska", (D @ 10/12/2024)[18:00], (D @ 11/12/2024)[23:30])
+task3 = Task("Obiad", 60, "IKEA Kraków Josepha Conrada 66, 31-357 Kraków, Polska", (D @ 10/12/2024)[13:00], (D @ 12/12/2024)[16:00])
+task4 = Task("Zakupy", 30, "Biedronka Piastowska 49, 30-211 Kraków, Polska", (D @ 9/12/2024)[11:00], (D @ 12/12/2024)[21:00])
+task5 = Task("Zajęcia", 195, "Wydział Humanistyczny AGH Czarnowiejska 36/Budynek C-7, 30-054 Kraków, Polska", (D @ 12/12/2024)[16:45], (D @ 12/12/2024)[20:00])
+task6 = Task("Odebranie przesyłki", 30, "Galeria Krakowska Pawia 5, 31-154 Kraków, Polska", (D @ 10/12/2024)[11:00], (D @ 15/12/2024)[9:45])
 tasks = [depot, task1, task2, task3, task4, task5, task6]
-modes = ["walking", "transit"]
-transit_modes = ["bus"]
+modes = ["walking"]
+transit_modes = []
 
-solution, finished = initial_solution((D @ 26/11/2024)[14:00], (D @ 3/12/2024)[22:00], tasks, modes, transit_modes)
+solution, finished = initial_solution((D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00], tasks, modes, transit_modes)
 obj = get_distance_objective(solution)
 print(obj)
 
