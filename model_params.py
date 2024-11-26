@@ -120,12 +120,16 @@ class Task:
         """
 
         # sprawdzenie czy dany dzień jest w oknie czasowym
-        date_time_plus = date_time + self.duration*minutes
-        if date_time.day < self.window_left.day:    # czy jest to ten sam dzien
-            return False
+        # sprawdzenie dnia
+        if date_time < self.window_left:        # obecny czas jest przed otwarciem okna czasowego
+            date_time_tmp = (D @ date_time.day/date_time.month/date_time.year)[00:00]
+            window_left_tmp = (D @ self.window_left.day/self.window_left.month/self.window_right.year)[00:00]
+            if date_time_tmp != window_left_tmp:    # jeśli okno nie otworzy się obecnego dnia
+                return False
 
+        date_time_plus = date_time + self.duration * minutes
         if date_time_plus > self.window_right:
-            return False # error
+            return False  # error
 
         # sprawdzenie czy w tym dniu tygodnia miejsce jest otwarte
         if not self.opening_hours or not self.closing_hours:
@@ -137,7 +141,7 @@ class Task:
             current_time = time(hour=date_time.hour, minute=date_time.minute)
             opening_time = datetime.strptime(self.opening_hours[day_of_week], '%H:%M')
             opening_time = time(hour=opening_time.hour, minute=opening_time.minute)
-            closing_time = datetime.strptime(self.closing_hours[day_of_week], '%H:%M')
+            closing_time = datetime.strptime(self.closing_hours[day_of_week], '%H:%M')      # SPR! zamiast 12 powinno być 00
             closing_time = time(hour=closing_time.hour, minute=closing_time.minute)
 
             # czas po realizacji
@@ -156,6 +160,7 @@ class Task:
                     return False
 
             return True
+        return False
 
     def get_waiting_time(self, date_time: BeautifulDate):
 
@@ -172,9 +177,13 @@ class Task:
         current_time = timedelta(hours=date_time.hour, minutes=date_time.minute)
         opening_time = datetime.strptime(self.opening_hours[day_of_week], '%H:%M')
         opening_time = timedelta(hours=opening_time.hour, minutes=opening_time.minute)
+        window_left_time = timedelta(hours=self.window_left.hour, minutes=self.window_left.minute)
 
-        if current_time < opening_time:     # jeśli trzeba oczekiwać
+        if opening_time > window_left_time and current_time < opening_time:     # jeśli trzeba oczekiwać na otwarcie miejsca
             waiting_time = opening_time - current_time
+            return waiting_time.total_seconds() / 60
+        elif window_left_time > opening_time > current_time:        # jeśli trzeba oczekiwać na otwarcie okna
+            waiting_time = window_left_time - current_time
             return waiting_time.total_seconds() / 60
         else:
             return 0

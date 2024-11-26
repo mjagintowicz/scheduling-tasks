@@ -153,10 +153,17 @@ class TaskTab(QWidget):
         :return:
         """
 
+        # nieistniejący zakres czasu
         if self.begin_date.date() > self.end_date.date() or \
                 (self.begin_date.date() == self.end_date.date() and
-                 self.begin_time.date() >= self.end_time.date()):
+                 self.begin_time.time() >= self.end_time.time()):
             dlg = DialogWindow("Uwaga!", "Wprowadź poprawny zakres czasu!")
+            dlg.exec()  # jeśli podany jest zły przedział czasowy - komunikat o błędzie
+
+        # jeśli zakres jest poprawny ale zawiera daty z przeszłości
+        if self.begin_date.date() < QDate.currentDate() or (self.begin_date.date() == QDate.currentDate()
+                                                            and self.begin_time.time() < QTime.currentTime()):
+            dlg = DialogWindow("Uwaga!", "Przedział nie może zawierać dat z przeszłości!")
             dlg.exec()  # jeśli podany jest zły przedział czasowy - komunikat o błędzie
 
         else:
