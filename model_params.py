@@ -179,10 +179,10 @@ class Task:
         opening_time = timedelta(hours=opening_time.hour, minutes=opening_time.minute)
         window_left_time = timedelta(hours=self.window_left.hour, minutes=self.window_left.minute)
 
-        if opening_time > window_left_time and current_time < opening_time:     # jeśli trzeba oczekiwać na otwarcie miejsca
+        if opening_time > window_left_time > current_time or opening_time > current_time > window_left_time:     # jeśli trzeba oczekiwać na otwarcie miejsca
             waiting_time = opening_time - current_time
             return waiting_time.total_seconds() / 60
-        elif window_left_time > opening_time > current_time:        # jeśli trzeba oczekiwać na otwarcie okna
+        elif window_left_time > opening_time > current_time or window_left_time > current_time > opening_time:        # jeśli trzeba oczekiwać na otwarcie okna
             waiting_time = window_left_time - current_time
             return waiting_time.total_seconds() / 60
         else:

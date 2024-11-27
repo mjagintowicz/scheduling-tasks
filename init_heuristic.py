@@ -56,19 +56,22 @@ def get_tasks_locations(tasks: List[Task]):
     return locations
 
 
-def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, finished, travel_modes, transit_modes = []):
+def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, finished, all_modes):
+
+    """
+    Funkcja sprawdzająca, czy opłacalny jest powrót do bazy mimo dostępnych zadań.
+    :param task_inx: indeks ostatniego zadania
+    :param next_task_inx: indeks potencjalnego następnego zadania
+    :param matrixes: macierze odległości (kosztów)
+    :param tasks: lista zadań
+    :param current_time: obecna chwila czasowa
+    :param finished: lista indeksów wykonanych zadań
+    :param all_modes: lista z nazwami wszystkich metod transportu
+    :return: najlepszy czas powrotu do bazy, indeks odpowiedniej macierzy (inf oznacza, że powrót nie jest opłacalny)
+    """
 
     ends = []
     return_times = []
-
-    # utworzenie listy ze wszystkimi środkami transportu (to sie robi w f glownej)
-    all_modes = []
-    for mode in travel_modes:
-        if mode == 'transit':
-            for t_mode in transit_modes:
-                all_modes.append(t_mode)
-        else:
-            all_modes.append(mode)
 
     # waiting_time = czas od current_time do next_task_start
     waiting_time = tasks[next_task_inx].get_waiting_time(current_time)
@@ -239,6 +242,46 @@ def tasks_available(tasks, finished, current_time):
     return False
 
 
+# funkcja kończąca kurs - dodaje przystanek końcowy bazę
+def end_route(depot: Task, T_begin: BeautifulDate, T_end: BeautifulDate, current_task_inx: int,
+              current_time: BeautifulDate, matrixes: List[List[List]], all_modes: List[str], route: List[Task],
+              return_time = None, return_inx = None):
+
+    """
+    Funkcja wykonująca kolejne kroki niezbędne do zakończenia kursu.
+    :param depot: baza
+    :param T_begin: czas rozpoczęcia harmonogramu
+    :param T_end: czas zakończenia harmongramu
+    :param current_task_inx: indeks ostatniego zadania
+    :param current_time: obecna chwila czasowa
+    :param matrixes: macierze odległości (kosztów)
+    :param all_modes: lista wszystkich metod transportu
+    :param route: obecny kurs
+    :param return_time: opcj. najlepszy czas powrotu do bazy - można podać, jeśli został wcześniej wyznaczony
+    :param return_inx: opcj. indeks macierzy, z której uzyskany został powyższy czas
+    :return: kurs z przystankiem końcowym
+    """
+
+    depot_last = create_depot(depot.location, T_begin, T_end)       # utworzenie bazy
+
+    if return_time is None and return_inx is None:
+        travel_time, matrix_inx = get_quickest_return(current_task_inx, matrixes, current_time)
+        depot_last.travel_method = all_modes[matrix_inx]
+        start_time = current_time + travel_time * minutes
+
+    else:
+        depot_last = create_depot(depot.location, T_begin, T_end)
+        depot_last.travel_method = all_modes[return_inx]
+        start_time = current_time + return_time * minutes
+
+    depot_last.start_date_time = start_time
+    route.append(depot_last)  # dołączenie bazy jako przystanka końcowego
+
+    return route
+
+
+
+
 def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[Task], travel_modes: List[str],
                      transit_modes: List[str] = []):  # (depot musi być w liście też)
 
@@ -293,12 +336,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
             if next_task_inx == inf or not tasks_available(tasks, finished, current_time):
                 # jeśli droga faktycznie powstała (nie jest to sama baza), to ją zapisz
                 if len(route) != 1:
-                    depot_last = create_depot(depot.location, T_begin, T_end)
-                    travel_time, matrix_inx = get_quickest_return(current_task_inx, matrixes, current_time)
-                    depot_last.travel_method = all_modes[matrix_inx]
-                    start_time = current_time + travel_time * minutes
-                    depot_last.start_date_time = start_time
-                    route.append(depot_last)     # dołączenie bazy jako przystanka końcowego
+                    route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, all_modes, route)
                     solution[route_start_time] = route
                     break
             else:  # jeśli wybór zadania był valid
@@ -309,12 +347,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                 start_time = current_time+travel_time * minutes
                 waiting_time = tasks[next_task_inx].get_waiting_time(start_time)    # czas oczekiwania
                 if waiting_time is None:
-                    depot_last = create_depot(depot.location, T_begin, T_end)
-                    travel_time, matrix_inx = get_quickest_return(current_task_inx, matrixes, current_time)
-                    depot_last.travel_method = modes[matrix_inx]
-                    start_time = current_time + travel_time * minutes
-                    depot_last.start_date_time = start_time
-                    route.append(depot_last)
+                    route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, all_modes, route)
                     solution[route_start_time] = route  # zapisanie rozwiazania
                     break
                 if waiting_time != 0:
@@ -324,13 +357,9 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                         start_time = travel_search_time + travel_time * minutes
                     else:   # należy sprawdzić czy zamiast czekania lepiej wrócić
                         # ... SPRAWDZENIE CZY TRAVEL MODES SĄ ZGODNE (CAR, BIKE)
-                        return_time, matrix_inx = route_end_valid(current_task_inx, next_task_inx, matrixes, tasks, start_time, finished, travel_modes, transit_modes)
+                        return_time, matrix_inx = route_end_valid(current_task_inx, next_task_inx, matrixes, tasks, start_time, finished, all_modes)
                         if return_time != inf:      # opłacalny powrót!
-                            depot_last = create_depot(depot.location, T_begin, T_end)
-                            depot_last.travel_method = all_modes[matrix_inx]
-                            start_time = current_time + return_time * minutes
-                            depot_last.start_date_time = start_time
-                            route.append(depot_last)
+                            route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, all_modes, route, return_time, matrix_inx)
                             solution[route_start_time] = route  # zakończenie kursu
                             current_task = depot
                             current_task_inx = 0
@@ -351,12 +380,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
 
             if not tasks_available(tasks, finished, current_time) and len(route) != 1:      # sprawdzenie czy kurs można kontynuować - jeśli nie
                 # powrót do bazy
-                depot_last = create_depot(depot.location, T_begin, T_end)
-                travel_time, matrix_inx = get_quickest_return(current_task_inx, matrixes, current_time)
-                depot_last.travel_method = modes[matrix_inx]
-                start_time = current_time + travel_time * minutes
-                depot_last.start_date_time = start_time
-                route.append(depot_last)
+                route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, all_modes, route)
                 solution[route_start_time] = route      # zapisanie rozwiazania
                 break
             elif len(route) == 1:
@@ -365,8 +389,8 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
         if len(finished) == len(tasks) or current_time >= T_end:     # jeśli wszystkie zadania zostały już wykonane albo czas przekroczony
             break
 
-        start_date_only = (D @ start_time.day/start_time.month/start_time.year)[00:00]
-        end_date_only = (D @ end_time.day/end_time.month/end_time.year)[00:00]
+        start_date_only = (D @ tasks[current_task_inx].start_date_time.day/tasks[current_task_inx].start_date_time.month/tasks[current_task_inx].start_date_time.year)[00:00]
+        end_date_only = (D @ tasks[current_task_inx].end_date_time.day/tasks[current_task_inx].end_date_time.month/tasks[current_task_inx].end_date_time.year)[00:00]
         if start_date_only == end_date_only:     # jeśli koniec zadania nastąpił tego samego dnia (w przeciwnym wypadku czas jest kontyunowany)CO JESLI TE DATY SIE NIE NALICZA WCZESNIEJ - CZYMS JE ZASTAPIC
             current_time = current_time + 24 * hours  # update daty przed rozpoczeciem petli nowego dnia
             current_time = (D @ current_time.day / current_time.month / current_time.year)[00:00]
