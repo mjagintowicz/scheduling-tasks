@@ -152,7 +152,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
 
 
 def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_time: BeautifulDate,
-                weights: List[float] = [0.1, 0.1, 0.8]):
+                weights: List[float] = [0.3, 0.1, 0.6]):
     """
     Funkcja znajdująca następne zadanie o lokalizacji najbliższej obecnej.
     :param task_inx: indeks zadania
@@ -174,8 +174,9 @@ def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_ti
         else:
             distance = task_distances[inx]  # odległość
             waiting_time = tasks[inx].get_waiting_time(current_time)  # czas oczekiwania na najwcześniejszy start
-            current_time_plus = current_time + distance * minutes + tasks[inx].duration * minutes
-            urgency = tasks[inx].window_right - current_time_plus  # pilność zadania
+            #current_time_plus = current_time + distance * minutes + tasks[inx].duration * minutes
+            #urgency = tasks[inx].window_right - current_time_plus  # pilność zadania
+            urgency = tasks[inx].window_right - current_time
             urgency = urgency.total_seconds() / 60
 
             results.append(weights[0] * distance + weights[1] * waiting_time + weights[2] * urgency)
@@ -345,9 +346,15 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                                 matrixes[i][row][col] = inf
             # jeśli jest to jakaś z pozostałych metod, to samochód i rower są blokowane
             elif tasks[current_task_inx].travel_method in ['wallking', 'bus', 'tram', 'rail']:
-                driving_inx = all_modes.index('driving')
-                bicycle_inx = all_modes.index('bicycle')
-                for i in range(length(matrixes)):
+                if 'driving' in all_modes:
+                    driving_inx = all_modes.index('driving')
+                else:
+                    driving_inx = inf
+                if 'bicycle' in all_modes:
+                    bicycle_inx = all_modes.index('bicycle')
+                else:
+                    bicycle_inx = inf
+                for i in range(len(matrixes)):
                     if i == driving_inx or i == bicycle_inx:
                         for row in range(len(matrixes[i])):
                             for col in range(len(matrixes[i])):
@@ -457,15 +464,16 @@ def display_solution(solution: Dict[BeautifulDate, List[Task]]):
     """
 
     for start_date, route in solution.items():
-        print('*****', start_date, '*****')
+        print(f'***** {start_date} *****')
         for i in range(1, len(route)):
             if i != len(route) - 1:
-                print(i,':', route[i].name, ', o godzinie:', route[i].start_date_time, '; dojazd:', route[i].travel_method)
+                print(f'{i}: {route[i].name}, o godzinie: {route[i].start_date_time}; transport: {route[i].travel_method}')
             else:
-                print('Planowana godzina powrotu:', route[i].start_date_time, '; dojazd', route[i].travel_method)
+                print(f'Planowana godzina powrotu: {route[i].start_date_time}; transport: {route[i].travel_method}')
+        print(f'\n')
 
     objective = get_distance_objective(solution)
-    print('Wartość funkcji celu:', objective)
+    print(f'Wartość funkcji celu: {objective}')
 
 
 depot = create_depot("Juliana Tokarskiego 8, Kraków", (D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00])
@@ -476,8 +484,8 @@ task4 = Task("Zakupy", 30, "Biedronka Piastowska 49, 30-211 Kraków, Polska", (D
 task5 = Task("Zajęcia", 195, "Wydział Humanistyczny AGH Czarnowiejska 36/Budynek C-7, 30-054 Kraków, Polska", (D @ 12/12/2024)[16:45], (D @ 12/12/2024)[20:00])
 task6 = Task("Odebranie przesyłki", 30, "Galeria Krakowska Pawia 5, 31-154 Kraków, Polska", (D @ 10/12/2024)[11:00], (D @ 15/12/2024)[9:45])
 tasks = [depot, task1, task2, task3, task4, task5, task6]
-modes = ["walking"]
-transit_modes = []
+modes = ["walking", "transit"]
+transit_modes = ["bus"]
 
 solution, finished = initial_solution((D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00], tasks, modes, transit_modes)
 display_solution(solution)
@@ -490,3 +498,4 @@ display_solution(solution)
 # warning, że wybrane zadania mogą nie być możliwe do ułożenia ...
 # wyswietlanie godzin w rozwiązaniu -  czy w ogóle trzeba to wyświetlać?
 # naliczanie route_start_time - to nie jest istotne, bo można to wyliczyć mając travel_time i start_time (nie obchodzi mnie ile czasu było spędzone w domu przez wyjazdem)
+# zapisywanie szczegółów dojazdów autobusowych - nr linii, przystanki
