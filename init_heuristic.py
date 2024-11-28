@@ -331,7 +331,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
             # jeśli poprzedni travel_mode to samochód, to trzeba kontynuwać podróż samochodem
             if tasks[current_task_inx].travel_method == 'driving':
                 driving_inx = all_modes.index('driving')
-                for i in range(length(matrixes)):
+                for i in range(len(matrixes)):
                     if i != driving_inx:
                         for row in range(len(matrixes[i])):
                             for col in range(len(matrixes[i])):
@@ -339,7 +339,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
             # analogicznie dla roweru
             elif tasks[current_task_inx].travel_method == 'bicycle':
                 bicycle_inx = all_modes.index('bicycle')
-                for i in range(length(matrixes)):
+                for i in range(len(matrixes)):
                     if i != bicycle_inx:
                         for row in range(len(matrixes[i])):
                             for col in range(len(matrixes[i])):
@@ -484,7 +484,7 @@ task4 = Task("Zakupy", 30, "Biedronka Piastowska 49, 30-211 Kraków, Polska", (D
 task5 = Task("Zajęcia", 195, "Wydział Humanistyczny AGH Czarnowiejska 36/Budynek C-7, 30-054 Kraków, Polska", (D @ 12/12/2024)[16:45], (D @ 12/12/2024)[20:00])
 task6 = Task("Odebranie przesyłki", 30, "Galeria Krakowska Pawia 5, 31-154 Kraków, Polska", (D @ 10/12/2024)[11:00], (D @ 15/12/2024)[9:45])
 tasks = [depot, task1, task2, task3, task4, task5, task6]
-modes = ["walking", "transit"]
+modes = ["walking", "transit", "driving"]       # auto solos
 transit_modes = ["bus"]
 
 solution, finished = initial_solution((D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00], tasks, modes, transit_modes)
