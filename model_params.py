@@ -24,6 +24,7 @@ class Task:
 
         self.travel_method = None   # ustalona metoda transportu do lokalizacji zadania
         self.travel_time = None     # czas trwania podróży do lokalizacji
+        self.transit_details = []
 
     def set_time_windows(self, window_left: BeautifulDate, window_right: BeautifulDate):
         """

@@ -280,6 +280,23 @@ def end_route(depot: Task, T_begin: BeautifulDate, T_end: BeautifulDate, current
     return route
 
 
+def get_all_travel_modes(travel_modes: List[str], transit_modes: List[str] = []) -> List[str]:
+
+    """
+    Utworzenie listy ze wszystkimi wybranymi metodami transportu
+    :param travel_modes: lista metod
+    :param transit_modes: lista szczegółów komunikacji miejskiej
+    :return: lista wszystkich metod
+    """
+
+    all_modes = []
+    for mode in travel_modes:
+        if mode == 'transit':
+            for t_mode in transit_modes:
+                all_modes.append(t_mode)
+        else:
+            all_modes.append(mode)
+    return all_modes
 
 
 def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[Task], travel_modes: List[str],
@@ -295,13 +312,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
     """
 
     # utworzenie listy ze wszystkimi środkami transportu
-    all_modes = []
-    for mode in travel_modes:
-        if mode == 'transit':
-            for t_mode in transit_modes:
-                all_modes.append(t_mode)
-        else:
-            all_modes.append(mode)
+    all_modes = get_all_travel_modes(travel_modes, transit_modes)
 
     solution = {}       # rozwiązanie
     objective = 0       # wartość funkcji celu
@@ -337,8 +348,8 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                             for col in range(len(matrixes[i])):
                                 matrixes[i][row][col] = inf
             # analogicznie dla roweru
-            elif tasks[current_task_inx].travel_method == 'bicycle':
-                bicycle_inx = all_modes.index('bicycle')
+            elif tasks[current_task_inx].travel_method == 'bicycling':
+                bicycle_inx = all_modes.index('bicycling')
                 for i in range(len(matrixes)):
                     if i != bicycle_inx:
                         for row in range(len(matrixes[i])):
@@ -350,8 +361,8 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                     driving_inx = all_modes.index('driving')
                 else:
                     driving_inx = inf
-                if 'bicycle' in all_modes:
-                    bicycle_inx = all_modes.index('bicycle')
+                if 'bicycling' in all_modes:
+                    bicycle_inx = all_modes.index('bicycling')
                 else:
                     bicycle_inx = inf
                 for i in range(len(matrixes)):
@@ -464,7 +475,7 @@ def display_solution(solution: Dict[BeautifulDate, List[Task]]):
     """
 
     for start_date, route in solution.items():
-        print(f'***** {start_date} *****')
+        print(f'***** {(D @ start_date.day/start_date.month/start_date.year)} *****')
         for i in range(1, len(route)):
             if i != len(route) - 1:
                 print(f'{i}: {route[i].name}, o godzinie: {route[i].start_date_time}; transport: {route[i].travel_method}')
@@ -484,18 +495,16 @@ task4 = Task("Zakupy", 30, "Biedronka Piastowska 49, 30-211 Kraków, Polska", (D
 task5 = Task("Zajęcia", 195, "Wydział Humanistyczny AGH Czarnowiejska 36/Budynek C-7, 30-054 Kraków, Polska", (D @ 12/12/2024)[16:45], (D @ 12/12/2024)[20:00])
 task6 = Task("Odebranie przesyłki", 30, "Galeria Krakowska Pawia 5, 31-154 Kraków, Polska", (D @ 10/12/2024)[11:00], (D @ 15/12/2024)[9:45])
 tasks = [depot, task1, task2, task3, task4, task5, task6]
-modes = ["walking", "transit", "driving"]       # auto solos
-transit_modes = ["bus"]
+modes = ["walking", "transit"]       # auto solos
+transit_modes = ["bus", "tram"]
 
 solution, finished = initial_solution((D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00], tasks, modes, transit_modes)
 display_solution(solution)
 
+
 # DODAĆ
 # warunek ustalający kryteria funkcji celu (koszt)
 # liczenie funkcji celu - inne kryteria
-# warunek funckji celu - wiele kursów 1 dnia
 # edycja rozwiązania, jeśli nie wszystkie zadania zostały wykonane
 # warning, że wybrane zadania mogą nie być możliwe do ułożenia ...
-# wyswietlanie godzin w rozwiązaniu -  czy w ogóle trzeba to wyświetlać?
-# naliczanie route_start_time - to nie jest istotne, bo można to wyliczyć mając travel_time i start_time (nie obchodzi mnie ile czasu było spędzone w domu przez wyjazdem)
 # zapisywanie szczegółów dojazdów autobusowych - nr linii, przystanki

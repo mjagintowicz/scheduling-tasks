@@ -392,7 +392,7 @@ class ParamTab(QWidget):
         self.check_rail = QCheckBox("Kolej")
         self.check_rail.stateChanged.connect(lambda: self.update_travel("rail"))
         self.check_bike = QCheckBox("Rower")
-        self.check_bike.stateChanged.connect(lambda: self.update_travel("bicycle"))
+        self.check_bike.stateChanged.connect(lambda: self.update_travel("bicycling"))
 
         # layout na checkboxy
         self.travel_layout = QVBoxLayout()
