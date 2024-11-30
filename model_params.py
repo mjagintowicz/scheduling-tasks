@@ -15,6 +15,7 @@ class Task:
 
         self.opening_hours = None  # godziny pracy
         self.closing_hours = None
+        self.working_hours_manual = False
 
         self.window_left = window_left  # dodatkowe ograniczenia zawężające okres na realizację
         self.window_right = window_right
@@ -65,8 +66,8 @@ class Task:
         Uzyskanie informacji na temat godzin pracy lokalizacji z Google Places API.
         :return: NIC
         """
-
-        self.opening_hours, self.closing_hours = get_location_working_hours(self.location)
+        if not self.working_hours_manual:   # tylko jeśli nie została wybrana opcja zaznaczenia ich manualnie
+            self.opening_hours, self.closing_hours = get_location_working_hours(self.location)
 
     def is_available_now(self, date_time: BeautifulDate) -> bool:
         """
@@ -189,6 +190,20 @@ class Task:
             return waiting_time.total_seconds() / 60
         else:
             return 0
+
+    def set_working_hours_manual(self, closing_hours, opening_hours):
+
+        """
+        Ustalenie własnych godzin otwarcia (dane wprowadzane w interfejsie, np. dla zadań typu zajęcia, które nie mogą
+        być przesuwane w czasie).
+        :param closing_hours: lista godzin otwarcia
+        :param opening_hours: lista godzin zamknięcia
+        :return: NIC
+        """
+        self.closing_hours = closing_hours
+        self.opening_hours = opening_hours
+        self.working_hours_manual = True        # blokada poboru godzin z API
+
 
 
 

@@ -83,7 +83,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
             ends.append(False)
             return_times.append(inf)
 
-        else:   # wyznaczenie potencjalnego najbliższego zadania po powrocie
+        else:   # wyznaczenie potencjalnego najbliższego zadania po powrocie, nie trzeba sprawdzać car/bike, bo do funkcji przekazywane są macierze inf, jeśli to jest zablokowane
             return_time = matrix[task_inx][0]
             current_time += return_time * minutes
             # ponowna generacja macierzy (dla konkretnie przetwarzanego środka transportu)
@@ -185,6 +185,52 @@ def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_ti
     next_task_inx = results.index(best_result)  # indeks najbliższego
 
     return next_task_inx, best_result
+
+
+def disable_travel_methods(tasks: List[Task], all_modes: List[str], current_task_inx: int, matrixes):
+
+    """
+    Funkcja przetwarzająca macierze, blokująca samochód i rower, jeśli w trasie znajdowały się inne środki transportu,
+    lub wszystkie inne jeśli został już wybrany samochód/rower.
+    :param tasks: lista zadań
+    :param all_modes: lista wszystkich wybranych metod transportu
+    :param current_task_inx: indeks ostatniego dodanego zadania do kursu
+    :param matrixes: macierze odległości (ew. kosztów)
+    :return: wyczyszczone macierze
+    """
+
+    if tasks[current_task_inx].travel_method == 'driving':
+        driving_inx = all_modes.index('driving')
+        for i in range(len(matrixes)):
+            if i != driving_inx:
+                for row in range(len(matrixes[i])):
+                    for col in range(len(matrixes[i])):
+                        matrixes[i][row][col] = inf
+    # analogicznie dla roweru
+    elif tasks[current_task_inx].travel_method == 'bicycling':
+        bicycle_inx = all_modes.index('bicycling')
+        for i in range(len(matrixes)):
+            if i != bicycle_inx:
+                for row in range(len(matrixes[i])):
+                    for col in range(len(matrixes[i])):
+                        matrixes[i][row][col] = inf
+    # jeśli jest to jakaś z pozostałych metod, to samochód i rower są blokowane
+    elif tasks[current_task_inx].travel_method in ['wallking', 'bus', 'tram', 'rail']:
+        if 'driving' in all_modes:
+            driving_inx = all_modes.index('driving')
+        else:
+            driving_inx = inf
+        if 'bicycling' in all_modes:
+            bicycle_inx = all_modes.index('bicycling')
+        else:
+            bicycle_inx = inf
+        for i in range(len(matrixes)):
+            if i == driving_inx or i == bicycle_inx:
+                for row in range(len(matrixes[i])):
+                    for col in range(len(matrixes[i])):
+                        matrixes[i][row][col] = inf
+
+    return matrixes
 
 
 def get_available_nearest(task_inx: int, matrixes: List[List], tasks: List[Task], current_time: BeautifulDate,
@@ -340,36 +386,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                             matrix[col][inx] = inf
 
             # jeśli poprzedni travel_mode to samochód, to trzeba kontynuwać podróż samochodem
-            if tasks[current_task_inx].travel_method == 'driving':
-                driving_inx = all_modes.index('driving')
-                for i in range(len(matrixes)):
-                    if i != driving_inx:
-                        for row in range(len(matrixes[i])):
-                            for col in range(len(matrixes[i])):
-                                matrixes[i][row][col] = inf
-            # analogicznie dla roweru
-            elif tasks[current_task_inx].travel_method == 'bicycling':
-                bicycle_inx = all_modes.index('bicycling')
-                for i in range(len(matrixes)):
-                    if i != bicycle_inx:
-                        for row in range(len(matrixes[i])):
-                            for col in range(len(matrixes[i])):
-                                matrixes[i][row][col] = inf
-            # jeśli jest to jakaś z pozostałych metod, to samochód i rower są blokowane
-            elif tasks[current_task_inx].travel_method in ['wallking', 'bus', 'tram', 'rail']:
-                if 'driving' in all_modes:
-                    driving_inx = all_modes.index('driving')
-                else:
-                    driving_inx = inf
-                if 'bicycling' in all_modes:
-                    bicycle_inx = all_modes.index('bicycling')
-                else:
-                    bicycle_inx = inf
-                for i in range(len(matrixes)):
-                    if i == driving_inx or i == bicycle_inx:
-                        for row in range(len(matrixes[i])):
-                            for col in range(len(matrixes[i])):
-                                matrixes[i][row][col] = inf
+            matrixes = disable_travel_methods(tasks, all_modes, current_task_inx, matrixes)
 
             # wybór indeksu najbliższego zadania
             next_task_inx, matrix_inx = get_available_nearest(current_task_inx, matrixes, tasks, current_time, finished)
@@ -487,19 +504,6 @@ def display_solution(solution: Dict[BeautifulDate, List[Task]]):
     print(f'Wartość funkcji celu: {objective}')
 
 
-depot = create_depot("Juliana Tokarskiego 8, Kraków", (D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00])
-task1 = Task("Pracownia", 270, "AGH D2, Czarna Wieś, 30-001 Kraków, Polska", (D @ 9/12/2024)[14:00], (D @ 9/12/2024)[18:30])
-task2 = Task("Gry", 210, "BarON - Pub z planszówkami i konsolami w Krakowie Stefana Batorego 1, 31-135 Kraków, Polska", (D @ 10/12/2024)[18:00], (D @ 11/12/2024)[23:30])
-task3 = Task("Obiad", 60, "IKEA Kraków Josepha Conrada 66, 31-357 Kraków, Polska", (D @ 10/12/2024)[13:00], (D @ 12/12/2024)[16:00])
-task4 = Task("Zakupy", 30, "Biedronka Piastowska 49, 30-211 Kraków, Polska", (D @ 9/12/2024)[11:00], (D @ 12/12/2024)[21:00])
-task5 = Task("Zajęcia", 195, "Wydział Humanistyczny AGH Czarnowiejska 36/Budynek C-7, 30-054 Kraków, Polska", (D @ 12/12/2024)[16:45], (D @ 12/12/2024)[20:00])
-task6 = Task("Odebranie przesyłki", 30, "Galeria Krakowska Pawia 5, 31-154 Kraków, Polska", (D @ 10/12/2024)[11:00], (D @ 15/12/2024)[9:45])
-tasks = [depot, task1, task2, task3, task4, task5, task6]
-modes = ["walking", "transit"]       # auto solos
-transit_modes = ["bus", "tram"]
-
-solution, finished = initial_solution((D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00], tasks, modes, transit_modes)
-display_solution(solution)
 
 
 # DODAĆ
