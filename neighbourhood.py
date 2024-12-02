@@ -83,8 +83,7 @@ def fix_route(route: List[Task], current_inx: int, travel_modes: List[str], tran
 def intra_route_reinsertion(route: List[Task], travel_modes: List[str], transit_modes: List[str] = [])\
         -> List[Task] | None:
     """
-    NIETESTOWANE! Operator sąsiedztwa usuwający jedno losowe zadanie z kursu i szukający innych możliwych miejsc jego
-    wstawienia.
+    Operator sąsiedztwa usuwający jedno losowe zadanie z kursu i szukający innych możliwych miejsc jego wstawienia.
     :param route: kurs
     :param travel_modes: metody transportu
     :param transit_modes: szczegóły dotyczące komunikacji miejskiej

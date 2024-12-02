@@ -378,7 +378,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
             # uzyskanie macierzy odległości
             # ... (ew. kosztów)
             matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time)[0]
-            # usunięcie z macierzy niepotrzebnych już danych
+            # usunięcie z macierzy niepotrzebnych już danych (to już zbędne)
             for matrix in matrixes:
                 for col in range(len(matrix[0])):
                     for inx in finished:

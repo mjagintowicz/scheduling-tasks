@@ -21,7 +21,7 @@ class StartWindow(QMainWindow):
         self.setWindowTitle('Optymalizacja harmonogramu')
 
         # rozmiar okna
-        self.setFixedSize(1500, 850)
+        self.setFixedSize(1200, 850)
 
         # layout główny
         self.tab_layout = QVBoxLayout()
@@ -63,23 +63,24 @@ class TaskTab(QWidget):
 
         # przycisk startowy
         self.start_button = QPushButton('Pobierz zadania\nz kalendarza', self)
-        self.start_button.setFixedSize(400, 200)
-        self.start_button.setFont(QFont('Calibri', 25))
+        self.start_button.setFixedSize(200, 75)
+        self.start_button.setFont(QFont('Calibri', 15))
         self.start_button.clicked.connect(self.get_data)  # po kliknięciu funkcja
 
         # przycisk otwierający okno podgląd
         self.tasks_button = QPushButton('Potwierdź listę zadań', self)
-        self.tasks_button.setFixedSize(400, 200)
-        self.tasks_button.setFont(QFont('Calibri', 25))
+        self.tasks_button.setFixedSize(200, 75)
+        self.tasks_button.setFont(QFont('Calibri', 15))
         self.tasks_button.clicked.connect(self.display_tasks)
 
         self.log_out_button = QPushButton('Wyloguj się', self)
-        self.log_out_button.setFixedSize(400, 200)
-        self.log_out_button.setFont(QFont('Calibri', 25))
+        self.log_out_button.setFixedSize(200, 75)
+        self.log_out_button.setFont(QFont('Calibri', 15))
         self.log_out_button.clicked.connect(self.clear_data)
 
         # layout do przycisków
         self.button_layout = QVBoxLayout()
+        self.button_layout.setContentsMargins(200, 250, 100, 250)
         self.button_layout.addWidget(self.start_button)
         self.button_layout.addWidget(self.tasks_button)
         self.button_layout.addWidget(self.log_out_button)
@@ -137,7 +138,7 @@ class TaskTab(QWidget):
         self.full_date_time_layout.addLayout(self.begin_date_time_layout)
         self.full_date_time_layout.addLayout(self.end_label_layout)
         self.full_date_time_layout.addLayout(self.end_date_time_layout)
-        self.full_date_time_layout.setContentsMargins(0, 320, 0, 320)
+        self.full_date_time_layout.setContentsMargins(0, 320, 200, 320)
 
         # layout główny
         self.start_layout = QHBoxLayout()
@@ -404,16 +405,27 @@ class ParamTab(QWidget):
         self.travel_layout.addWidget(self.check_rail)
         self.travel_layout.addWidget(self.check_bike)
 
+        self.params_layout = QVBoxLayout()
+        self.params_label = QLabel("Parametry:")
+        self.params_layout.addWidget(self.params_label)
+
         # przycisk rozpoczęcia algorytmu
-        self.algorithm_button = QPushButton("Alogrytm")
+        self.algorithm_button = QPushButton("Algorytm")
+        self.algorithm_button.setFixedSize(200, 75)
         self.algorithm_button.clicked.connect(self.generate_initial_solution)
         self.depot_location = QLineEdit("Lokalizacja bazy:")
 
         self.button_layout = QVBoxLayout()
-        self.button_layout.addWidget(self.algorithm_button)
         self.button_layout.addWidget(self.depot_location)
+        self.button_layout.addWidget(self.algorithm_button)
+        self.button_layout.setContentsMargins(100, 300, 200, 300)
 
-        self.layout.addLayout(self.travel_layout)
+        self.choice_layout = QVBoxLayout()
+        self.choice_layout.addLayout(self.travel_layout)
+        self.choice_layout.addLayout(self.params_layout)
+        self.choice_layout.setContentsMargins(200, 300, 100, 300)
+
+        self.layout.addLayout(self.choice_layout)
         self.layout.addLayout(self.button_layout)
         self.setLayout(self.layout)
 

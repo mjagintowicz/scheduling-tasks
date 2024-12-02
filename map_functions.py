@@ -8,10 +8,9 @@ from copy import deepcopy
 from re import search
 from beautiful_date import *
 
-
 inf = float('inf')
 
-with open('key.txt', 'r') as file:      # odczytanie klucza z pliku txt
+with open('key.txt', 'r') as file:  # odczytanie klucza z pliku txt
     my_key = file.read().rstrip()
 
 gmaps = googlemaps.Client(key=my_key)  # nowy klient
@@ -52,12 +51,12 @@ def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
                 am_pm_match = findall(am_pm_pattern, data)
                 matches = []
                 for hour_match in hour_matches:
-                    matches.append(hour_match+'\u202f'+am_pm_match[0])
+                    matches.append(hour_match + '\u202f' + am_pm_match[0])
 
             if matches:  # jeśli są
 
                 opening_hour, opening_a_p = matches[0].split('\u202f')  # kowersja godzin do wybranego formatu
-                matches_12 = findall(pattern_12, opening_hour)      # czy jest między 12:00 a 12:59
+                matches_12 = findall(pattern_12, opening_hour)  # czy jest między 12:00 a 12:59
                 if opening_a_p == 'PM' and not matches_12:
                     new_time = datetime.strptime(opening_hour, '%H:%M')
                     new_time = new_time + timedelta(hours=12)
@@ -80,13 +79,13 @@ def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
                 closing_hours.append('-')
 
     else:
-        opening_hours = 7*["00:00"]
-        closing_hours = 7*["00:00"]
+        opening_hours = 7 * ["00:00"]
+        closing_hours = 7 * ["00:00"]
 
     return opening_hours, closing_hours
 
 
-def time_pattern_match(distance_time_str: str) -> int:
+def time_pattern_match(distance_time_str: str):
     """
     Konwersja tekstu z wartością czasu na odpowiadającą mu liczbę minut (int).
     :param distance_time_str: tekst z czasem po angielsku (np. 1 day 2 horus)
@@ -112,7 +111,7 @@ def time_pattern_match(distance_time_str: str) -> int:
     return distance_time
 
 
-def iterate_through_matrix(rows: List) -> List[List[int]]:
+def iterate_through_matrix(rows: List):
     """
     Funkcja pomocnicza do iterowania po rzędach macierzy odległości zwróconej przez klienta Pythona.
     :param rows: rzędzy macierzy odległości
@@ -127,13 +126,13 @@ def iterate_through_matrix(rows: List) -> List[List[int]]:
         col_cnt = 0
         for item in element['elements']:
 
-            if row_cnt == col_cnt:      # jeśli jest to element na przekątnej (dystans z A do A)
-                distance_time = inf     # uzupełnienie inf
+            if row_cnt == col_cnt:  # jeśli jest to element na przekątnej (dystans z A do A)
+                distance_time = inf  # uzupełnienie inf
             else:
                 distance_time_str = item['duration']['text']
-                distance_time = time_pattern_match(distance_time_str)       # konwersja str do liczby minut
+                distance_time = time_pattern_match(distance_time_str)  # konwersja str do liczby minut
 
-            matrix[row_cnt][col_cnt] = distance_time        # aktualizacja macierzy
+            matrix[row_cnt][col_cnt] = distance_time  # aktualizacja macierzy
 
             col_cnt += 1
 
@@ -142,7 +141,7 @@ def iterate_through_matrix(rows: List) -> List[List[int]]:
     return matrix
 
 
-def get_fare(rows: List) -> List[List[int]]:
+def get_fare(rows: List):
     """
     Uzyskanie informacji na temat kosztów biletów.
     :param rows: rzędy macierzy odległości
@@ -160,7 +159,7 @@ def get_fare(rows: List) -> List[List[int]]:
             if row_cnt == col_cnt:  # jeśli jest to element na przekątnej (dystans z A do A)
                 fare = inf  # uzupełnienie inf
             else:
-                if 'fare' in item:          # jeśli jest informacja o koszcie
+                if 'fare' in item:  # jeśli jest informacja o koszcie
                     fare = item['fare']['value']
                 else:
                     fare = inf
@@ -175,7 +174,7 @@ def get_fare(rows: List) -> List[List[int]]:
 
 
 def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_modes: List[str] = None,
-                               departure_time: BeautifulDate = D.now()):
+                               departure_time: BeautifulDate = D.now(), finished: List[int] = []):
     """
     Uzyskanie macierzy odległości i macierzy kosztów.
     :param locations: lista lokalizacji (wierzchołki grafu)
@@ -183,12 +182,20 @@ def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_m
     :param transit_modes: dodatkowe informacje, jeśli wcześniej wybrano "transit" (“bus”, “subway”, “train”, “tram”, “rail”)
     :param departure_time: chwila, w której można kontynuować kurs (domyślnie - teraz)
     :return: lista z macierzami dystansów dla wybranych sposobów podróży (czas w minutach)
+    :param finished: lista zadań wykonanych (zastąpienie ich infami) w celu zmniejszenia ilości elementów w zapytaniu
     """
 
     distance_matrixes = []
     cost_matrixes = []
 
-    for mode in modes:   # dla każdej wybranej metody
+    # usunięcie zbędnych (odwiedzonych lokalizacji)
+    for i in range(len(locations)):
+        if i in finished:
+            locations[i] = 'inf'
+    while 'inf' in locations:
+        locations.remove('inf')
+
+    for mode in modes:  # dla każdej wybranej metody
 
         # pobranie danych
         if mode == 'transit':
@@ -197,6 +204,16 @@ def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_m
                                              transit_mode=transit_mode, departure_time=departure_time)['rows']
 
                 distance_matrix_tmp = iterate_through_matrix(rows)  # utworzenie macierzy dla wybranej metody
+
+                # wstawienie infów w odpowiednie indeksy
+                for row in range(len(distance_matrix_tmp[0])):
+                    for inx in finished:
+                        distance_matrix_tmp[row].insert(inx, inf)
+
+                for row in range(len(distance_matrix_tmp)):
+                    for inx in finished:
+                        distance_matrix_tmp.insert(inx, [inf] * len(distance_matrix_tmp[0]))      # tutaj, żeby się nie czepiał infów
+
                 distance_matrixes.append(deepcopy(distance_matrix_tmp))
 
                 cost_matrix_tmp = get_fare(rows)
@@ -207,6 +224,15 @@ def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_m
                                          departure_time=departure_time)['rows']
 
             distance_matrix_tmp = iterate_through_matrix(rows)
+            # wstawienie infów w odpowiednie indeksy
+            for row in range(len(distance_matrix_tmp[0])):
+                for inx in finished:
+                    distance_matrix_tmp[row].insert(inx, 'inf')
+
+            for row in range(len(distance_matrix_tmp)):
+                for inx in finished:
+                    distance_matrix_tmp.insert(inx, ['inf'] * len(distance_matrix_tmp[0])
+
             distance_matrixes.append(deepcopy(distance_matrix_tmp))
             cost_matrix_tmp = get_fare(rows)
             cost_matrixes.append(deepcopy(cost_matrix_tmp))
@@ -229,16 +255,16 @@ def get_transit_route_details(origin: str, destination: str, transit_mode: str,
 
     # kolejne elementy trasy
     steps = gmaps.directions(origin=origin, destination=destination, mode='transit', transit_mode=transit_mode,
-                                 departure_time=departure_time)[0]['legs'][0]['steps']
+                             departure_time=departure_time)[0]['legs'][0]['steps']
 
     for step in steps:
 
         duration_txt = step['duration']['text']
-        duration = time_pattern_match(duration_txt)     # wyznaczenie czasu
+        duration = time_pattern_match(duration_txt)  # wyznaczenie czasu
 
         mode = step['travel_mode']
 
-        if mode == 'TRANSIT':    # jeśli jest to fragment z przejazdem to zapisz dodatkowe info (skąd, dokąd, czym)
+        if mode == 'TRANSIT':  # jeśli jest to fragment z przejazdem to zapisz dodatkowe info (skąd, dokąd, czym)
             departure_stop = step['transit_details']['departure_stop']['name']
             arrival_stop = step['transit_details']['arrival_stop']['name']
 
