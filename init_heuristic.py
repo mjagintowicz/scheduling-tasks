@@ -79,6 +79,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
 
     for matrix in matrixes:
         # czekanie jest krótsze niż powrót do bazy - nie opłaca się wracać
+        # ten warunek rozwiązuje też zablokowane transporty z inf
         if waiting_time < matrix[task_inx][0]:
             ends.append(False)
             return_times.append(inf)
@@ -94,7 +95,8 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
             else:
                 travel_mode = [all_modes[matrix_inx]]
                 transit_mode = []
-            matrixes_tmp = get_distance_cost_matrixes(locations_tmp, travel_mode, transit_mode, current_time)[0]
+            # jako że to jest już wyznaczenie po powrocie, to trzeba wyznaczyć nowe zaktualizowane macierze (wszystkie metody są potencjalnie możliwe)
+            matrixes_tmp = get_distance_cost_matrixes(locations_tmp, travel_mode, transit_mode, current_time, finished)[0]
             next_task_inx_tmp, matrix_inx_tmp = get_available_nearest(0, matrixes_tmp, tasks, current_time, finished)
 
             # jeśli nie ma zadań na ten dzień
@@ -185,52 +187,6 @@ def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_ti
     next_task_inx = results.index(best_result)  # indeks najbliższego
 
     return next_task_inx, best_result
-
-
-def disable_travel_methods(tasks: List[Task], all_modes: List[str], current_task_inx: int, matrixes):
-
-    """
-    Funkcja przetwarzająca macierze, blokująca samochód i rower, jeśli w trasie znajdowały się inne środki transportu,
-    lub wszystkie inne jeśli został już wybrany samochód/rower.
-    :param tasks: lista zadań
-    :param all_modes: lista wszystkich wybranych metod transportu
-    :param current_task_inx: indeks ostatniego dodanego zadania do kursu
-    :param matrixes: macierze odległości (ew. kosztów)
-    :return: wyczyszczone macierze
-    """
-
-    if tasks[current_task_inx].travel_method == 'driving':
-        driving_inx = all_modes.index('driving')
-        for i in range(len(matrixes)):
-            if i != driving_inx:
-                for row in range(len(matrixes[i])):
-                    for col in range(len(matrixes[i])):
-                        matrixes[i][row][col] = inf
-    # analogicznie dla roweru
-    elif tasks[current_task_inx].travel_method == 'bicycling':
-        bicycle_inx = all_modes.index('bicycling')
-        for i in range(len(matrixes)):
-            if i != bicycle_inx:
-                for row in range(len(matrixes[i])):
-                    for col in range(len(matrixes[i])):
-                        matrixes[i][row][col] = inf
-    # jeśli jest to jakaś z pozostałych metod, to samochód i rower są blokowane
-    elif tasks[current_task_inx].travel_method in ['wallking', 'bus', 'tram', 'rail']:
-        if 'driving' in all_modes:
-            driving_inx = all_modes.index('driving')
-        else:
-            driving_inx = inf
-        if 'bicycling' in all_modes:
-            bicycle_inx = all_modes.index('bicycling')
-        else:
-            bicycle_inx = inf
-        for i in range(len(matrixes)):
-            if i == driving_inx or i == bicycle_inx:
-                for row in range(len(matrixes[i])):
-                    for col in range(len(matrixes[i])):
-                        matrixes[i][row][col] = inf
-
-    return matrixes
 
 
 def get_available_nearest(task_inx: int, matrixes: List[List], tasks: List[Task], current_time: BeautifulDate,
@@ -368,6 +324,10 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
     finished = [0]  # indeksy zadań nieodwiedzonych (baza jest odwiedzona)
     locations = get_tasks_locations(tasks)  # lista lokalizacji zadań
 
+    car_enabled = True      # jakie środki są dostępne
+    bike_enabled = True
+    others_enabled = True
+
     while True:  # przetworzenie konkretnego dnia
         current_task = depot
         current_task_inx = tasks.index(current_task)
@@ -375,18 +335,25 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
         route_start_time = current_time
 
         while True:  # tworzenie konkretnego kursu
-            # uzyskanie macierzy odległości
-            # ... (ew. kosztów)
-            matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time)[0]
-            # usunięcie z macierzy niepotrzebnych już danych (to już zbędne)
-            for matrix in matrixes:
-                for col in range(len(matrix[0])):
-                    for inx in finished:
-                        if inx != 0:
-                            matrix[col][inx] = inf
-
-            # jeśli poprzedni travel_mode to samochód, to trzeba kontynuwać podróż samochodem
-            matrixes = disable_travel_methods(tasks, all_modes, current_task_inx, matrixes)
+            # ustawienie warunków car/bike/others
+            if current_task_inx == 0:   # na początku kursu - wszystkie są domyślnie true
+                matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time, finished)[0]
+            else:
+                last_inx = finished[-1]     # indeks ostatniego zadania wykonanego w kursie
+                if tasks[last_inx].travel_method == 'driving':
+                    car_enabled = True
+                    bike_enabled = False
+                    others_enabled = False
+                elif tasks[last_inx].travel_method == 'bicycling':
+                    car_enabled = False
+                    bike_enabled = True
+                    others_enabled = False
+                else:
+                    car_enabled = False
+                    bike_enabled = False
+                    others_enabled = True
+                matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time, finished,
+                                                      car_enabled, bike_enabled, others_enabled)
 
             # wybór indeksu najbliższego zadania
             next_task_inx, matrix_inx = get_available_nearest(current_task_inx, matrixes, tasks, current_time, finished)
@@ -414,8 +381,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                         # ... update travel time, póki co zostaje domyślnie poprzedni
                         start_time = travel_search_time + travel_time * minutes
                     else:   # należy sprawdzić czy zamiast czekania lepiej wrócić
-                        # ... SPRAWDZENIE CZY TRAVEL MODES SĄ ZGODNE (CAR, BIKE)
-                        return_time, matrix_inx = route_end_valid(current_task_inx, next_task_inx, matrixes, tasks, start_time, finished, all_modes)
+                        return_time, matrix_inx = route_end_valid(current_task_inx, next_task_inx, matrixes, tasks, current_time, finished, all_modes)
                         if return_time != inf:      # opłacalny powrót!
                             route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, all_modes, route, return_time, matrix_inx)
                             solution[route_start_time] = route  # zakończenie kursu

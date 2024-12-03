@@ -119,7 +119,7 @@ def iterate_through_matrix(rows: List):
     """
 
     size = len(rows)  # wymiary macierzy (size x size)
-    matrix = [[0] * size for _ in range(size)]  # inicjalizacja wyjściowej macierzy
+    matrix = [[inf] * size for _ in range(size)]  # inicjalizacja wyjściowej macierzy
 
     row_cnt = 0
     for element in rows:
@@ -174,7 +174,8 @@ def get_fare(rows: List):
 
 
 def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_modes: List[str] = None,
-                               departure_time: BeautifulDate = D.now(), finished: List[int] = []):
+                               departure_time: BeautifulDate = D.now(), finished: List[int] = [],
+                               car_enabled: bool = True, bike_enabled: bool = True, others_enabled: bool = True):
     """
     Uzyskanie macierzy odległości i macierzy kosztów.
     :param locations: lista lokalizacji (wierzchołki grafu)
@@ -183,22 +184,26 @@ def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_m
     :param departure_time: chwila, w której można kontynuować kurs (domyślnie - teraz)
     :return: lista z macierzami dystansów dla wybranych sposobów podróży (czas w minutach)
     :param finished: lista zadań wykonanych (zastąpienie ich infami) w celu zmniejszenia ilości elementów w zapytaniu
+    :param car_enabled: zmienna określająca, czy rzeczywiście można użyć samochodu
+    :param bike_enabled: zmienna określająca, czy rzeczywiście można użyć roweru
+    :param others_enabled: zmienna określająca, czy rzeczywiście można użyć innych metod
     """
 
+    size = len(locations)
     distance_matrixes = []
     cost_matrixes = []
 
     # usunięcie zbędnych (odwiedzonych lokalizacji)
-    for i in range(len(locations)):
-        if i in finished:
-            locations[i] = 'inf'
+    for inx in range(len(locations)):
+        if inx in finished and inx != 0:
+            locations[inx] = 'inf'
     while 'inf' in locations:
         locations.remove('inf')
 
     for mode in modes:  # dla każdej wybranej metody
 
         # pobranie danych
-        if mode == 'transit':
+        if mode == 'transit' and others_enabled:    # żeby skorzystać z transit musi być opcja others_enabled
             for transit_mode in transit_modes:
                 rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
                                              transit_mode=transit_mode, departure_time=departure_time)['rows']
@@ -208,33 +213,49 @@ def get_distance_cost_matrixes(locations: List[str], modes: List[str], transit_m
                 # wstawienie infów w odpowiednie indeksy
                 for row in range(len(distance_matrix_tmp[0])):
                     for inx in finished:
+                        if inx == 0:
+                            continue
                         distance_matrix_tmp[row].insert(inx, inf)
 
                 for row in range(len(distance_matrix_tmp)):
                     for inx in finished:
-                        distance_matrix_tmp.insert(inx, [inf] * len(distance_matrix_tmp[0]))      # tutaj, żeby się nie czepiał infów
+                        if inx == 0:
+                            continue
+                        distance_matrix_tmp.insert(inx, [inf] * len(distance_matrix_tmp[0]))
 
                 distance_matrixes.append(deepcopy(distance_matrix_tmp))
 
                 cost_matrix_tmp = get_fare(rows)
                 cost_matrixes.append(deepcopy(cost_matrix_tmp))
 
-        else:
+        elif (mode == 'driving' and car_enabled) or (mode == 'bicycling' and bike_enabled) or (mode == 'walking' and
+                                                                                               others_enabled):
             rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
                                          departure_time=departure_time)['rows']
 
             distance_matrix_tmp = iterate_through_matrix(rows)
+
             # wstawienie infów w odpowiednie indeksy
             for row in range(len(distance_matrix_tmp[0])):
                 for inx in finished:
-                    distance_matrix_tmp[row].insert(inx, 'inf')
+                    if inx == 0:
+                        continue
+                    distance_matrix_tmp[row].insert(inx, inf)
 
             for row in range(len(distance_matrix_tmp)):
                 for inx in finished:
-                    distance_matrix_tmp.insert(inx, ['inf'] * len(distance_matrix_tmp[0])
+                    if inx == 0:
+                        continue
+                    distance_matrix_tmp.insert(inx, [inf] * len(distance_matrix_tmp[0]))
 
             distance_matrixes.append(deepcopy(distance_matrix_tmp))
             cost_matrix_tmp = get_fare(rows)
+            cost_matrixes.append(deepcopy(cost_matrix_tmp))
+
+        else:   # jeśli któraś z metod jest zablokowana - INF
+            distance_matrix_tmp = [[inf] * size for _ in range(size)]
+            distance_matrixes.append(deepcopy(distance_matrix_tmp))
+            cost_matrix_tmp = [[inf] * size for _ in range(size)]
             cost_matrixes.append(deepcopy(cost_matrix_tmp))
 
     return distance_matrixes, cost_matrixes
