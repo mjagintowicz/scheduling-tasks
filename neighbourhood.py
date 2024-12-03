@@ -21,14 +21,35 @@ def depot_time_fix_tmp(route: List[Task]):
     route[0].end_date_time = route[1].start_date_time - route[1].travel_time * minutes
 
 
-def get_route_objective(route):
+def get_route_objective(route, weights = [0.6, 0, 0.4]):
     """
-    DO UZUPEŁNIENIA liczenie wartości funkcji celu z konkretnego kursu
+    NIETESTOWANE! Liczenie wartości funkcji celu z konkretnego kursu.
     :param route: kurs
+    :param weights: wagi kryteriów funkcji celu
     :return: wartość objective
     """
 
-    return 111
+    objective = 0
+
+    for inx in range(len(route)):
+        if inx == 0:
+            continue
+        elif inx == len(route) - 1:
+            if route[inx].travel_cost == inf:
+                objective += weights[0] * route[inx].travel_time
+            else:
+                objective += weights[0] * route[inx].travel_time + weights[1] * route[inx].travel_cost
+        else:
+            arrival_date_time = route[inx - 1].end_date_time + route[inx].travel_time * minutes
+            waiting_time = route[inx].start_date_time - arrival_date_time
+            waiting_time = waiting_time.total_seconds() / 60
+            if route[inx].travel_cost == inf:
+                objective += weights[0] * route[inx].travel_time + weights[2] * waiting_time * minutes
+            else:
+                objective += weights[0] * route[inx].travel_time + weights[1] * route[inx].travel_cost\
+                             + weights[2] * waiting_time
+
+    return objective
 
 
 def fix_route(route: List[Task], current_inx: int, travel_modes: List[str], transit_modes: List[str] = []) \
@@ -267,15 +288,77 @@ def intra_route_reinsertion(route: List[Task], travel_modes: List[str], transit_
         return None
 
 
-def inter_route_shift(route1: List[Task], route2: List[Task]):
+def verify_shift(route: List[Task], next_route: List[Task]):
+
+    """
+    NIESTESTOWANE! Funkcja sprawdzająca, czy po edycji kursu czekanie w bazie jest opłacalne.
+    :param route: kurs
+    :param next_route: kolejny kurs
+    :return: tak/nie
+    """
+
+    date1 = route[-1].start_date_time
+    date2 = next_route[0].end_date_time
+
+    only_date1 = (D @ date1.day/date1.month/date1.year)[00:00]
+    only_date2 = (D @ date2.day / date2.month / date2.year)[00:00]
+
+    # kolejny kurs jest już innego dnia -> w porządku
+    if only_date1 < only_date2:
+        return True
+    # kolejny kurs jest tego samego dnia, ale czekanie w bazie wynosi przynajmniej 90 minut
+    elif (date2 - date1).total_seconds() / 60 >= 90:
+        return True
+    # zbyt krótkie czekanie w bazie -> zmiana nie jest opłacalna
+    else:
+        return False
+
+
+def inter_route_shift(route1: List[Task], route2: List[Task], route3: List[Task], travel_modes: List[str], transit_modes: List[str] = []):
+
+    """
+    NIETESTOWANE! Funkcja przenosząca zadanie z kursu 1. do kursu 2.
+    :param route1: kurs 1.
+    :param route2: kurs 2.
+    :param route3: kurs 3. (kolejny w rozwiązaniu po 2.)
+    :param travel_modes: metody transportu
+    :param transit_modes: szczegóły komunikacji miejskiej
+    :return: zmodyfikowane kursy lub None, jeśli się nie udało
+    """
+
+    route1_tmp = deepcopy(route1)
+    route2_tmp = deepcopy(route2)
+
+    # usunięcie zadania z kursu 1.
+    random_task = choice(route1_tmp[1:-1])
+    random_task_inx = route1_tmp.index(random_task)
+    route1_tmp.remove(random_task)
+    route1_tmp = fix_route(route1, random_task_inx, travel_modes, transit_modes)
+    if route1_tmp is None:
+        return None
+
+    # znalezienie valid wstawień w kursie 2.
+    feasible_insertions, objectives = find_valid_insertion(route2_tmp, random_task, travel_modes, transit_modes)
+    if feasible_insertions:
+        best = min(objectives)
+        best_inx = objectives.index(best)
+        best_inx = feasible_insertions[best_inx]
+        route2_tmp = single_insertion(route2_tmp, random_task, best_inx, travel_modes, transit_modes)
+
+        if verify_shift(route2_tmp, route3):    # sprawdzenie czy edycja nie zaburzy kolejnego kursu
+            return route1_tmp, route2_tmp
+        else:
+            return None
+
+    else:
+        return None
+
+
+def shift_from_the_most_busy_day(solution):
     pass
 
 
-def clear_the_most_busy_day(solution):
-    pass
-
-
-def clear_the_least_busy_day(solution):
+def shift_from_the_least_busy_day(solution):
     pass
 
 

@@ -426,30 +426,6 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
     return solution, finished
 
 
-def get_distance_objective(solution: Dict[BeautifulDate, List[Task]]) -> float:
-    """
-    Funkcja obliczająca wartość funkcji celu (czas między zadaniami).
-    :param solution: rozwiązanie
-    :return: wartość funkcji celu
-    """
-
-    objective = 0
-
-    for start_date, route in solution.items():
-        for i in range(1, len(route)):
-            if i == 1:
-                travel_start_time = route[i].start_date_time - route[i].travel_time * minutes
-                time_diff = route[i].start_date_time - travel_start_time
-                time_diff = time_diff.total_seconds() / 60
-            else:
-                time_diff = route[i].start_date_time - route[i-1].end_date_time
-                time_diff = time_diff.total_seconds() / 60
-
-            objective += time_diff
-
-    return objective
-
-
 def display_solution(solution: Dict[BeautifulDate, List[Task]]):
     """
     Funkcja wypisująca rozwiązanie w konsoli.
@@ -465,10 +441,6 @@ def display_solution(solution: Dict[BeautifulDate, List[Task]]):
             else:
                 print(f'Planowana godzina powrotu: {route[i].start_date_time}; transport: {route[i].travel_method}')
         print(f'\n')
-
-    objective = get_distance_objective(solution)
-    print(f'Wartość funkcji celu: {objective}')
-
 
 
 
