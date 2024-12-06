@@ -56,13 +56,14 @@ def get_tasks_locations(tasks: List[Task]):
     return locations
 
 
-def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, finished, all_modes):
+def route_end_valid(task_inx, next_task_inx, matrixes, cost_matrixes, tasks, current_time, finished, all_modes):
 
     """
     Funkcja sprawdzająca, czy opłacalny jest powrót do bazy mimo dostępnych zadań.
     :param task_inx: indeks ostatniego zadania
     :param next_task_inx: indeks potencjalnego następnego zadania
-    :param matrixes: macierze odległości (kosztów)
+    :param matrixes: macierze odległości
+    :param cost_matrixes: macierze kosztów
     :param tasks: lista zadań
     :param current_time: obecna chwila czasowa
     :param finished: lista indeksów wykonanych zadań
@@ -72,6 +73,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
 
     ends = []
     return_times = []
+    return_costs = []
     locations_tmp = get_tasks_locations(tasks)
 
     # waiting_time = czas od current_time do next_task_start
@@ -89,6 +91,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
             current_time += return_time * minutes
             # ponowna generacja macierzy (dla konkretnie przetwarzanego środka transportu)
             matrix_inx = matrixes.index(matrix)
+            return_cost = cost_matrixes[matrix_inx][task_inx][0]
             if all_modes[matrix_inx] in ['bus', 'tram', 'rail']:
                 travel_mode = ['transit']
                 transit_mode = [all_modes[matrix_inx]]
@@ -96,7 +99,8 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
                 travel_mode = [all_modes[matrix_inx]]
                 transit_mode = []
             # jako że to jest już wyznaczenie po powrocie, to trzeba wyznaczyć nowe zaktualizowane macierze (wszystkie metody są potencjalnie możliwe)
-            matrixes_tmp = get_distance_cost_matrixes(locations_tmp, travel_mode, transit_mode, current_time, finished)[0]
+            matrixes_tmp, cost_matrixes_tmp = get_distance_cost_matrixes(locations_tmp, travel_mode, transit_mode,
+                                                                         current_time, finished)
             next_task_inx_tmp, matrix_inx_tmp = get_available_nearest(0, matrixes_tmp, tasks, current_time, finished)
 
             # jeśli nie ma zadań na ten dzień
@@ -107,6 +111,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
                 if window_right < current_time + tasks[next_task_inx].duration * minutes:
                     end.append(False)
                     return_times.append(inf)
+                    return_costs.append(inf)
 
                 # sprawdzanie czy jest inny dzień, w którym zadanie jest dostępne
                 else:
@@ -118,6 +123,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
                         if tasks[next_task_inx].is_available_today(current_time_tmp):
                             end.append(True)        # przypadek, że opłaca się wracać, ale
                             return_times.append(return_time)
+                            return_costs.append(return_cost)
                             break
                         current_time_tmp = current_time_tmp + 1 * day
 
@@ -125,6 +131,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
                     if not found:
                         end.append(False)
                         return_times.append(inf)
+                        return_costs.append(inf)
 
             # znalezione zostało potencjalne następne zadanie w trasie
             else:
@@ -134,10 +141,12 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
                 if waiting_time - travel_time < 90:     # nie opłaca się wracać do bazy
                     ends.append(False)
                     return_times.append(inf)
+                    return_costs.append(inf)
                 else:
                     ends.append(True)           # opłaca się wracać
                     matrix_inx = matrixes.index(matrix)
                     return_times.append(return_time)
+                    return_costs.append(return_cost)
 
     # wybor minimalnego jeśli jest jakiś true, że faktycznie warto wrocic
     possible_returns = []
@@ -150,7 +159,8 @@ def route_end_valid(task_inx, next_task_inx, matrixes, tasks, current_time, fini
     # jeśli był to należy wybrać ten najkrótszy i go zwrócić
     best_return = min(possible_returns)
     matrix_inx = return_times.index(best_return)
-    return best_return, matrix_inx
+    best_cost = return_cost[matrix_inx]
+    return best_return, matrix_inx, best_cost
 
 
 def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_time: BeautifulDate,
@@ -247,7 +257,7 @@ def tasks_available(tasks, finished, current_time):
 
 # funkcja kończąca kurs - dodaje przystanek końcowy bazę
 def end_route(depot: Task, T_begin: BeautifulDate, T_end: BeautifulDate, current_task_inx: int,
-              current_time: BeautifulDate, matrixes: List[List[List]], all_modes: List[str], route: List[Task],
+              current_time: BeautifulDate, matrixes: List[List[List]], cost_matrixes, all_modes: List[str], route: List[Task],
               return_time = None, return_inx = None):
 
     """
@@ -257,7 +267,8 @@ def end_route(depot: Task, T_begin: BeautifulDate, T_end: BeautifulDate, current
     :param T_end: czas zakończenia harmongramu
     :param current_task_inx: indeks ostatniego zadania
     :param current_time: obecna chwila czasowa
-    :param matrixes: macierze odległości (kosztów)
+    :param matrixes: macierze odległości
+    :param cost_matrixes: macierze kosztów
     :param all_modes: lista wszystkich metod transportu
     :param route: obecny kurs
     :param return_time: opcj. najlepszy czas powrotu do bazy - można podać, jeśli został wcześniej wyznaczony
@@ -273,11 +284,12 @@ def end_route(depot: Task, T_begin: BeautifulDate, T_end: BeautifulDate, current
         start_time = current_time + travel_time * minutes
 
     else:
-        depot_last = create_depot(depot.location, T_begin, T_end)
+        depot_last = create_depot(depot.location, T_begin, T_end)       # czemu ta linijka jest 2 razy już boję się ruszać
         depot_last.travel_method = all_modes[return_inx]
         start_time = current_time + return_time * minutes
 
     depot_last.start_date_time = start_time
+    depot_last.travel_cost = cost_matrixes[matrix_inx][current_task_inx][0]
     route.append(depot_last)  # dołączenie bazy jako przystanka końcowego
 
     return route
@@ -338,7 +350,8 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
         while True:  # tworzenie konkretnego kursu
             # ustawienie warunków car/bike/others
             if current_task_inx == 0:   # na początku kursu - wszystkie są domyślnie true
-                matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time, finished)[0]
+                matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
+                                                                     current_time, finished)
             else:
                 last_inx = finished[-1]     # indeks ostatniego zadania wykonanego w kursie
                 if tasks[last_inx].travel_method == 'driving':
@@ -353,8 +366,9 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                     car_enabled = False
                     bike_enabled = False
                     others_enabled = True
-                matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time, finished,
-                                                      car_enabled, bike_enabled, others_enabled)[0]
+                matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
+                                                                     current_time, finished, car_enabled, bike_enabled,
+                                                                     others_enabled)
 
             # wybór indeksu najbliższego zadania
             next_task_inx, matrix_inx = get_available_nearest(current_task_inx, matrixes, tasks, current_time, finished)
@@ -362,18 +376,21 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
             if next_task_inx == inf or not tasks_available(tasks, finished, current_time):
                 # jeśli droga faktycznie powstała (nie jest to sama baza), to ją zapisz
                 if len(route) != 1:
-                    route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, all_modes, route)
+                    route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, cost_matrixes,
+                                      all_modes, route)
                     solution[route_start_time] = route
                     break
             else:  # jeśli wybór zadania był valid
                 # zapisanie czasu rozpoczęcia i zakończenia
                 tasks[next_task_inx].travel_method = all_modes[matrix_inx]
+                tasks[next_task_inx].travel_cost = cost_matrixes[matrix_inx][current_task_inx][next_task_inx]
                 travel_time = matrixes[matrix_inx][current_task_inx][next_task_inx]
                 tasks[next_task_inx].travel_time = travel_time
                 start_time = current_time + travel_time * minutes
                 waiting_time = tasks[next_task_inx].get_waiting_time(start_time)    # czas oczekiwania
                 if waiting_time is None:
-                    route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, all_modes, route)
+                    route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, cost_matrixes,
+                                      all_modes, route)
                     solution[route_start_time] = route  # zapisanie rozwiazania
                     break
                 if waiting_time != 0:
@@ -382,9 +399,12 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                         # ... update travel time, póki co zostaje domyślnie poprzedni
                         start_time = travel_search_time + travel_time * minutes
                     else:   # należy sprawdzić czy zamiast czekania lepiej wrócić
-                        return_time, matrix_inx = route_end_valid(current_task_inx, next_task_inx, matrixes, tasks, current_time, finished, all_modes)
+                        return_time, matrix_inx, return_cost = route_end_valid(current_task_inx, next_task_inx,
+                                                                               matrixes, cost_matrixes, tasks,
+                                                                               current_time, finished, all_modes)
                         if return_time != inf:      # opłacalny powrót!
-                            route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, all_modes, route, return_time, matrix_inx)
+                            route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes,
+                                              cost_matrixes, all_modes, route, return_time, matrix_inx)
                             solution[route_start_time] = route  # zakończenie kursu
                             current_task = depot
                             current_task_inx = 0
@@ -405,7 +425,8 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
 
             if not tasks_available(tasks, finished, current_time) and len(route) != 1:      # sprawdzenie czy kurs można kontynuować - jeśli nie
                 # powrót do bazy
-                route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, all_modes, route)
+                route = end_route(depot, T_begin, T_end, current_task_inx, current_time, cost_matrixes, matrixes,
+                                  all_modes, route)
                 solution[route_start_time] = route      # zapisanie rozwiazania
                 break
             elif len(route) == 1:
