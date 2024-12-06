@@ -167,7 +167,7 @@ def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_ti
 
     results = []  # ostateczne wyniki kryterium
     task_distances = matrix[task_inx]  # odległości od obecnego zadania do pozostałych
-    if all(distance == inf for distance in task_distances):  # jeśli wszystko inf -- wszystko jest już odwiedzone
+    if all(distance == inf for distance in task_distances[1:]):  # jeśli wszystko inf -- wszystko jest już odwiedzone (bez bazy)
         return inf, inf
 
     for inx in range(len(tasks)):
@@ -181,7 +181,8 @@ def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_ti
             urgency = tasks[inx].window_right - current_time
             urgency = urgency.total_seconds() / 60
 
-            results.append(weights[0] * distance + weights[1] * waiting_time + weights[2] * urgency)
+            result = weights[0] * distance + weights[1] * waiting_time + weights[2] * urgency
+            results.append(result)
 
     best_result = min(results)
     next_task_inx = results.index(best_result)  # indeks najbliższego
@@ -353,7 +354,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                     bike_enabled = False
                     others_enabled = True
                 matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time, finished,
-                                                      car_enabled, bike_enabled, others_enabled)
+                                                      car_enabled, bike_enabled, others_enabled)[0]
 
             # wybór indeksu najbliższego zadania
             next_task_inx, matrix_inx = get_available_nearest(current_task_inx, matrixes, tasks, current_time, finished)

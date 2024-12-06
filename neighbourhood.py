@@ -547,12 +547,15 @@ def shift_from_the_most_busy_day(solution: Dict[BeautifulDate, List[Task]], T_be
             break
 
     if insertion:   # jeśli wstawienie się powiodło - podmiana kursu na skrócony
-        solution = replace_route(solution, route_tmp, lonely_task)
+        solution_tmp = deepcopy(solution)
+        solution_tmp = replace_route(solution_tmp, route_tmp, lonely_task)
     elif short_route is not None:  # jeśli został stworzony nowy kurs - podmiana i dodanie nowego kursu do rozwiązania
-        solution = replace_route(solution, route_tmp, lonely_task)
-        solution[short_route[0].end_date_time] = short_route
+        solution_tmp = deepcopy(solution)
+        solution_tmp = replace_route(solution_tmp, route_tmp, lonely_task)
+        solution_tmp[short_route[0].end_date_time] = short_route
 
-    return  solution
+    return solution_tmp
+
 
 def shift_from_the_least_busy_day(solution: Dict[BeautifulDate, List[Task]], T_begin: BeautifulDate,
                                   T_end: BeautifulDate, travel_modes: List[str], transit_modes: List[str] = []):
@@ -573,7 +576,7 @@ def shift_from_the_least_busy_day(solution: Dict[BeautifulDate, List[Task]], T_b
 
 
 # TESTOWANIE
-"""
+
 depot = create_depot("Juliana Tokarskiego 8, Kraków", (D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00])
 task1 = Task("Basen", 270, "Basen AGH", (D @ 9/12/2024)[14:00], (D @ 12/12/2024)[14:00])
 task2 = Task("Gry", 210, "BarON - Pub z planszówkami i konsolami w Krakowie Stefana Batorego 1, 31-135 Kraków, Polska", (D @ 10/12/2024)[18:00], (D @ 11/12/2024)[23:30])
@@ -582,8 +585,8 @@ task4 = Task("Zakupy", 30, "Biedronka Piastowska 49, 30-211 Kraków, Polska", (D
 task5 = Task("Zajęcia", 195, "Wydział Humanistyczny AGH Czarnowiejska 36/Budynek C-7, 30-054 Kraków, Polska", (D @ 12/12/2024)[16:45], (D @ 12/12/2024)[20:00])
 task6 = Task("Odebranie przesyłki", 30, "Galeria Krakowska Pawia 5, 31-154 Kraków, Polska", (D @ 10/12/2024)[11:00], (D @ 15/12/2024)[9:45])
 tasks = [depot, task1, task2, task3, task4, task5, task6]
-modes = ["walking", "transit"]       # auto solos
-transit_modes = ["bus", "tram"]
+modes = ["walking"]       # auto solos
+transit_modes = []
 
 solution, finished = initial_solution((D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00], tasks, modes, transit_modes)
 display_solution(solution)
@@ -591,4 +594,3 @@ display_solution(solution)
 route_test = solution[(D @ 9/12/2024)[8:00]]
 depot_time_fix_tmp(route_test)
 route_test_prim = intra_route_reinsertion(route_test, modes, transit_modes)
-"""
