@@ -23,7 +23,7 @@ def depot_time_fix_tmp(route: List[Task]):
 
 def get_route_objective(route, weights = [0.6, 0, 0.4]):
     """
-    NIETESTOWANE! Liczenie wartości funkcji celu z konkretnego kursu.
+    Liczenie wartości funkcji celu z konkretnego kursu.
     :param route: kurs
     :param weights: wagi kryteriów funkcji celu
     :return: wartość objective
@@ -118,7 +118,7 @@ def fix_route(route: List[Task], current_inx: int, travel_modes: List[str], tran
 def find_valid_insertion(route: List[Task], lonely_task: Task, travel_modes: List[str],
                          transit_modes: List[str] = [], forbidden_inx=None):
     """
-    NIESTESTOWANE! Funkcja znajdująca dopuszczalne wstawienia w kursie.
+    Funkcja znajdująca dopuszczalne wstawienia w kursie.
     :param route: kurs
     :param lonely_task: zadanie do wstawienia
     :param travel_modes: metody transportu
@@ -202,7 +202,7 @@ def single_insertion(route: List[Task], lonely_task: Task, insertion_inx: int, t
                      transit_modes: List[str] = []):
 
     """
-    NIETESTOWANE! Funkcja realizująca wstawienie punktu do kursu.
+    Funkcja realizująca wstawienie punktu do kursu.
     :param route: kurs
     :param lonely_task: zadanie do wstawienia
     :param insertion_inx: indeks zadania, po którym należy wstawić
@@ -295,7 +295,7 @@ def intra_route_reinsertion(route: List[Task], travel_modes: List[str], transit_
 def verify_shift(route: List[Task], next_route: List[Task]):
 
     """
-    NIESTESTOWANE! Funkcja sprawdzająca, czy po edycji kursu czekanie w bazie jest opłacalne.
+    Funkcja sprawdzająca, czy po edycji kursu czekanie w bazie jest opłacalne.
     :param route: kurs
     :param next_route: kolejny kurs
     :return: tak/nie
@@ -425,7 +425,7 @@ def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, t
                          transit_modes: List[str]):
 
     """
-    NIETESTOWANE! Funkcja tworząca krótki kurs baza-zadanie-baza.
+    Funkcja tworząca krótki kurs baza-zadanie-baza.
     :param depot: baza
     :param task: zadanie
     :param current_time: obecna chwila czasowa
@@ -483,7 +483,7 @@ def shift_from_the_most_busy_day(solution: Dict[BeautifulDate, List[Task]], T_be
                                  T_end: BeautifulDate, travel_modes: List[str], transit_modes: List[str] = []):
 
     """
-    NIETESTOWANE TO BĘDZIE KOSZMAR! Operator sąsiedztwa - przenosi ostatnie zadanie z najbardziej zajętego dnia na inny.
+    NIETESTOWANE! Operator sąsiedztwa - przenosi ostatnie zadanie z najbardziej zajętego dnia na inny.
     :param solution: rozwiązanie
     :param T_begin: początek harmonogramu
     :param T_end: koniec harmonogramu
@@ -549,16 +549,27 @@ def shift_from_the_most_busy_day(solution: Dict[BeautifulDate, List[Task]], T_be
     if insertion:   # jeśli wstawienie się powiodło - podmiana kursu na skrócony
         solution_tmp = deepcopy(solution)
         solution_tmp = replace_route(solution_tmp, route_tmp, lonely_task)
+        return solution_tmp
     elif short_route is not None:  # jeśli został stworzony nowy kurs - podmiana i dodanie nowego kursu do rozwiązania
         solution_tmp = deepcopy(solution)
         solution_tmp = replace_route(solution_tmp, route_tmp, lonely_task)
         solution_tmp[short_route[0].end_date_time] = short_route
-
-    return solution_tmp
+        return solution_tmp
+    else:
+        return solution
 
 
 def shift_from_the_least_busy_day(solution: Dict[BeautifulDate, List[Task]], T_begin: BeautifulDate,
                                   T_end: BeautifulDate, travel_modes: List[str], transit_modes: List[str] = []):
+    """
+    NIEDOKOŃCZONE
+    :param solution:
+    :param T_begin:
+    :param T_end:
+    :param travel_modes:
+    :param transit_modes:
+    :return:
+    """
 
     begin_date = (D @ T_begin.day / T_begin.month / T_begin.year)[00:00]
     end_date = (D @ T_end.day / T_end.month / T_end.year)[00:00]
@@ -576,7 +587,7 @@ def shift_from_the_least_busy_day(solution: Dict[BeautifulDate, List[Task]], T_b
 
 
 # TESTOWANIE
-
+"""
 depot = create_depot("Juliana Tokarskiego 8, Kraków", (D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00])
 task1 = Task("Basen", 270, "Basen AGH", (D @ 9/12/2024)[14:00], (D @ 12/12/2024)[14:00])
 task2 = Task("Gry", 210, "BarON - Pub z planszówkami i konsolami w Krakowie Stefana Batorego 1, 31-135 Kraków, Polska", (D @ 10/12/2024)[18:00], (D @ 11/12/2024)[23:30])
@@ -585,7 +596,7 @@ task4 = Task("Zakupy", 30, "Biedronka Piastowska 49, 30-211 Kraków, Polska", (D
 task5 = Task("Zajęcia", 195, "Wydział Humanistyczny AGH Czarnowiejska 36/Budynek C-7, 30-054 Kraków, Polska", (D @ 12/12/2024)[16:45], (D @ 12/12/2024)[20:00])
 task6 = Task("Odebranie przesyłki", 30, "Galeria Krakowska Pawia 5, 31-154 Kraków, Polska", (D @ 10/12/2024)[11:00], (D @ 15/12/2024)[9:45])
 tasks = [depot, task1, task2, task3, task4, task5, task6]
-modes = ["walking"]       # auto solos
+modes = ["walking"]       
 transit_modes = []
 
 solution, finished = initial_solution((D @ 9/12/2024)[8:00], (D @ 15/12/2024)[22:00], tasks, modes, transit_modes)
@@ -594,3 +605,4 @@ display_solution(solution)
 route_test = solution[(D @ 9/12/2024)[8:00]]
 depot_time_fix_tmp(route_test)
 route_test_prim = intra_route_reinsertion(route_test, modes, transit_modes)
+"""

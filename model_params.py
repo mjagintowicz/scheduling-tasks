@@ -15,7 +15,6 @@ class Task:
 
         self.opening_hours = None  # godziny pracy
         self.closing_hours = None
-        self.working_hours_manual = False
 
         self.window_left = window_left  # dodatkowe ograniczenia zawężające okres na realizację
         self.window_right = window_right
@@ -25,8 +24,8 @@ class Task:
 
         self.travel_method = None   # ustalona metoda transportu do lokalizacji zadania
         self.travel_time = None     # czas trwania podróży do lokalizacji
-        self.transit_details = []
         self.travel_cost = None     # koszt podróży (kryterium 2)
+        self.transit_details = []
 
     def set_time_windows(self, window_left: BeautifulDate, window_right: BeautifulDate):
         """
@@ -52,23 +51,24 @@ class Task:
         self.start_date_time = start_date_time
         self.end_date_time = end_date_time
 
-    def set_travel_method(self, travel_method: str):
+    def set_travel_parameters(self, travel_method: str, travel_time: int, travel_cost: float):
         """
-        Metoda ustawiająca parametr określający metodę transportu do lokalizacji zadania
-        :param travel_method: metoda transportu (“driving”, “walking”, “bus”, “subway”, “train”, “tram”, “rail”, “bicycling”)
-        takie jak w mapach
+        Metoda ustawiająca parametry dotyczące transportu do lokalizacji zadania.
+        :param travel_method: sposób podróży
+        :param travel_time: czas (min)
+        :param travel_cost: koszt
         :return: NIC
         """
-
         self.travel_method = travel_method
+        self.travel_time = travel_time
+        self.travel_cost = travel_cost
 
     def get_working_hours(self):
         """
         Uzyskanie informacji na temat godzin pracy lokalizacji z Google Places API.
         :return: NIC
         """
-        if not self.working_hours_manual:   # tylko jeśli nie została wybrana opcja zaznaczenia ich manualnie
-            self.opening_hours, self.closing_hours = get_location_working_hours(self.location)
+        self.opening_hours, self.closing_hours = get_location_working_hours(self.location)
 
     def is_available_now(self, date_time: BeautifulDate) -> bool:
         """
@@ -191,19 +191,6 @@ class Task:
             return waiting_time.total_seconds() / 60
         else:
             return 0
-
-    def set_working_hours_manual(self, closing_hours, opening_hours):
-
-        """
-        Ustalenie własnych godzin otwarcia (dane wprowadzane w interfejsie, np. dla zadań typu zajęcia, które nie mogą
-        być przesuwane w czasie).
-        :param closing_hours: lista godzin otwarcia
-        :param opening_hours: lista godzin zamknięcia
-        :return: NIC
-        """
-        self.closing_hours = closing_hours
-        self.opening_hours = opening_hours
-        self.working_hours_manual = True        # blokada poboru godzin z API
 
 
 

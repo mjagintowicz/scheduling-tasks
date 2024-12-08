@@ -185,10 +185,10 @@ def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_ti
             results.append(inf)
         else:
             distance = task_distances[inx]  # odległość
-            waiting_time = tasks[inx].get_waiting_time(current_time)  # czas oczekiwania na najwcześniejszy start
-            #current_time_plus = current_time + distance * minutes + tasks[inx].duration * minutes
-            #urgency = tasks[inx].window_right - current_time_plus  # pilność zadania
-            urgency = tasks[inx].window_right - current_time
+            arrival_time = current_time + distance * minutes
+            waiting_time = tasks[inx].get_waiting_time(arrival_time)  # czas oczekiwania na najwcześniejszy start
+            current_time_plus = current_time + distance * minutes + tasks[inx].duration * minutes
+            urgency = tasks[inx].window_right - current_time_plus  # pilność zadania
             urgency = urgency.total_seconds() / 60
 
             result = weights[0] * distance + weights[1] * waiting_time + weights[2] * urgency
@@ -280,16 +280,19 @@ def end_route(depot: Task, T_begin: BeautifulDate, T_end: BeautifulDate, current
 
     if return_time is None and return_inx is None:
         travel_time, matrix_inx = get_quickest_return(current_task_inx, matrixes, current_time)
-        depot_last.travel_method = all_modes[matrix_inx]
+        travel_method = all_modes[matrix_inx]
+        travel_cost = cost_matrixes[matrix_inx][current_task_inx][0]
         start_time = current_time + travel_time * minutes
 
     else:
-        depot_last = create_depot(depot.location, T_begin, T_end)       # czemu ta linijka jest 2 razy już boję się ruszać
-        depot_last.travel_method = all_modes[return_inx]
+        depot_last = create_depot(depot.location, T_begin, T_end)
+        travel_method = all_modes[return_inx]
+        travel_time = return_time
+        travel_cost = cost_matrixes[return_inx][current_task_inx][0]
         start_time = current_time + return_time * minutes
 
     depot_last.start_date_time = start_time
-    depot_last.travel_cost = cost_matrixes[matrix_inx][current_task_inx][0]
+    depot_last.set_travel_parameters(travel_method, travel_time, travel_cost)
     route.append(depot_last)  # dołączenie bazy jako przystanka końcowego
 
     return route
@@ -382,10 +385,10 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                     break
             else:  # jeśli wybór zadania był valid
                 # zapisanie czasu rozpoczęcia i zakończenia
-                tasks[next_task_inx].travel_method = all_modes[matrix_inx]
-                tasks[next_task_inx].travel_cost = cost_matrixes[matrix_inx][current_task_inx][next_task_inx]
+                travel_method = all_modes[matrix_inx]
+                travel_cost = cost_matrixes[matrix_inx][current_task_inx][next_task_inx]
                 travel_time = matrixes[matrix_inx][current_task_inx][next_task_inx]
-                tasks[next_task_inx].travel_time = travel_time
+                tasks[next_task_inx].set_travel_parameters(travel_method, travel_time, travel_cost)
                 start_time = current_time + travel_time * minutes
                 waiting_time = tasks[next_task_inx].get_waiting_time(start_time)    # czas oczekiwania
                 if waiting_time is None:
@@ -463,12 +466,3 @@ def display_solution(solution: Dict[BeautifulDate, List[Task]]):
             else:
                 print(f'Planowana godzina powrotu: {route[i].start_date_time}; transport: {route[i].travel_method}')
         print(f'\n')
-
-
-
-# DODAĆ
-# warunek ustalający kryteria funkcji celu (koszt)
-# liczenie funkcji celu - inne kryteria
-# edycja rozwiązania, jeśli nie wszystkie zadania zostały wykonane
-# warning, że wybrane zadania mogą nie być możliwe do ułożenia ...
-# zapisywanie szczegółów dojazdów autobusowych - nr linii, przystanki
