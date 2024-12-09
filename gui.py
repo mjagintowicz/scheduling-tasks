@@ -497,7 +497,7 @@ class ParamTab(QWidget):
         elif validate_location(self.depot_location.text()):
             depot = create_depot(self.depot_location.text(), self.parent.T_begin, self.parent.T_end)
             self.parent.tasks.insert(0, depot)
-            self.parent.solution = initial_solution(self.parent.T_begin, self.parent.T_end, self.parent.tasks, self.parent.modes)       # na razie testy tylko dla walking
+            self.parent.solution = initial_solution(self.parent.T_begin, self.parent.T_end, self.parent.tasks, self.parent.modes)
         else:
             dlg = DialogWindow("Błąd!", "Podaj poprawny adres startowy.")
             dlg.exec()

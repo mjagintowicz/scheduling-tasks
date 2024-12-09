@@ -170,9 +170,6 @@ def log_out():
     """
     os.remove("token.pickle")
 
-# exception - kiedy token jest nieaktualny
-# albo kasuj go razem z zamknięciem aplikacji
-
 
 
 

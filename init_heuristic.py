@@ -127,7 +127,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, cost_matrixes, tasks, cur
                             break
                         current_time_tmp = current_time_tmp + 1 * day
 
-                    # jeśli zadanie nie zostało znalezione w pętli, no to sory nie można zrobić przerwy (wszyscy wiemy, że do takiej sytuacji nigdy nie dojdzie)
+                    # jeśli zadanie nie zostało znalezione w pętli, no to nie można zrobić przerwy
                     if not found:
                         end.append(False)
                         return_times.append(inf)
@@ -155,7 +155,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, cost_matrixes, tasks, cur
             possible_returns.append(return_times[inx])
 
     if not possible_returns:    # jeśli w żadnej macierzy nie było możliwego powrotu - inf inf - powrót do bazy jest invalid
-        return inf, inf
+        return inf, inf, inf
     # jeśli był to należy wybrać ten najkrótszy i go zwrócić
     best_return = min(possible_returns)
     matrix_inx = return_times.index(best_return)
@@ -370,8 +370,13 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                     bike_enabled = False
                     others_enabled = True
                 matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
-                                                                     current_time, finished, car_enabled, bike_enabled,
+                                                                     current_time, car_enabled, bike_enabled,
                                                                      others_enabled)
+            # stare dobre ahh czyszczenie - rachunek od googla is coming
+            for m in range(len(matrixes)):
+                for inx in finished:
+                    matrixes[m][current_task_inx][inx] = inf
+                    cost_matrixes[m][current_task_inx][inx] = inf
 
             # wybór indeksu najbliższego zadania
             next_task_inx, matrix_inx = get_available_nearest(current_task_inx, matrixes, tasks, current_time, finished)
@@ -428,7 +433,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
 
             if not tasks_available(tasks, finished, current_time) and len(route) != 1:      # sprawdzenie czy kurs można kontynuować - jeśli nie
                 # powrót do bazy
-                route = end_route(depot, T_begin, T_end, current_task_inx, current_time, cost_matrixes, matrixes,
+                route = end_route(depot, T_begin, T_end, current_task_inx, current_time, matrixes, cost_matrixes,
                                   all_modes, route)
                 solution[route_start_time] = route      # zapisanie rozwiazania
                 break
