@@ -21,7 +21,19 @@ def depot_time_fix_tmp(route: List[Task]):
     route[0].end_date_time = route[1].start_date_time - route[1].travel_time * minutes
 
 
-def get_route_objective(route, weights = [0.6, 0, 0.4]):
+def idle_times(solution: Dict[BeautifulDate, List[Task]]):
+    """
+    Czas oczekiwania w bazie.
+    :param solution: rozwiązanie
+    :return:
+    """
+    for key, route in solution.items():
+        idle_time = route[0].end_date_time - key
+        idle_time = idle_time.total_seconds() / 60
+        route[0].idle_time = idle_time
+
+
+def get_route_objective(route, weights=None):
     """
     Liczenie wartości funkcji celu z konkretnego kursu.
     :param route: kurs
@@ -29,6 +41,8 @@ def get_route_objective(route, weights = [0.6, 0, 0.4]):
     :return: wartość objective
     """
 
+    if weights is None:
+        weights = [0.6, 0, 0.4]
     objective = 0
 
     for inx in range(len(route)):
@@ -44,9 +58,9 @@ def get_route_objective(route, weights = [0.6, 0, 0.4]):
             waiting_time = route[inx].start_date_time - arrival_date_time
             waiting_time = waiting_time.total_seconds() / 60
             if route[inx].travel_cost == inf:
-                objective += weights[0] * route[inx].travel_time + weights[2] * waiting_time * minutes
+                objective += weights[0] * route[inx].travel_time + weights[2] * waiting_time
             else:
-                objective += weights[0] * route[inx].travel_time + weights[1] * route[inx].travel_cost\
+                objective += weights[0] * route[inx].travel_time + weights[1] * route[inx].travel_cost \
                              + weights[2] * waiting_time
 
     return objective
@@ -70,7 +84,13 @@ def fix_route(route: List[Task], current_inx: int, travel_modes: List[str], tran
         # uzyskanie macierzy odległości dla dostępnych metod transportu i wybór najkrótszej drogi
         locations = [route_tmp[i].location, route_tmp[i + 1].location]
         if i == 0:
-            matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, route_tmp[i].end_date_time)[0]
+            waiting_time = route_tmp[i + 1].get_waiting_time(
+                route_tmp[i].end_date_time - route_tmp[i].idle_time * minutes)
+            if waiting_time is None:
+                return None
+            # jeśli można poczekać w bazie to czekam w bazie na otwarcie i dla tego czasu sprawdzam dojazdy
+            opening_time = route_tmp[i].end_date_time - route_tmp[i].idle_time * minutes + waiting_time * minutes
+            matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, opening_time)
         else:
             if route_tmp[i].travel_method == 'driving':
                 car_enabled = True
@@ -84,10 +104,10 @@ def fix_route(route: List[Task], current_inx: int, travel_modes: List[str], tran
                 car_enabled = False
                 bike_enabled = False
                 others_enabled = True
-            matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, route_tmp[i].end_date_time,
-                                                  car_enabled=car_enabled, bike_enabled=bike_enabled,
-                                                  others_enabled=others_enabled)[0]
-
+            matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
+                                                                 route_tmp[i].end_date_time, car_enabled=car_enabled,
+                                                                 bike_enabled=bike_enabled,
+                                                                 others_enabled=others_enabled)
         distances = []
         for matrix in matrixes:  # uzyskanie odległości z macierzy
             distance = matrix[0][1]
@@ -95,7 +115,11 @@ def fix_route(route: List[Task], current_inx: int, travel_modes: List[str], tran
         # wybór najlepszego z indeksem odpowiedniej metody transportu
         travel_time = min(distances)  # uwaga, trzeba pilnować, żeby nie był inf
         matrix_inx = distances.index(travel_time)
-        arrival_time = route_tmp[i].end_date_time + travel_time * minutes
+        if i == 0:  # przybycie na miejsce - czas z macierzy + czas podróży
+            arrival_time = route_tmp[i].end_date_time - route_tmp[i].idle_time * minutes + waiting_time * minutes \
+                           + travel_time * minutes
+        else:
+            arrival_time = route_tmp[i].end_date_time + travel_time * minutes
         waiting_time = route_tmp[i + 1].get_waiting_time(arrival_time)
         if waiting_time is None:  # waiting time zły -> naprawa niedopuszczalna
             return None
@@ -105,12 +129,11 @@ def fix_route(route: List[Task], current_inx: int, travel_modes: List[str], tran
         if route_tmp[i + 1].name != 'Dom':
             end_time = start_time + route_tmp[i + 1].duration * minutes
             route_tmp[i + 1].set_start_end_date_time(start_time, end_time)
-            route_tmp[i + 1].travel_time = travel_time
         else:
             route_tmp[i + 1].start_date_time = start_time
-            route_tmp[i + 1].travel_time = travel_time
 
-        route_tmp[i + 1].travel_method = all_modes[matrix_inx]
+        # aktualizacja parametrów transportu
+        route_tmp[i + 1].set_travel_parameters(all_modes[matrix_inx], travel_time, cost_matrixes[matrix_inx][0][1])
 
     return route_tmp
 
@@ -137,7 +160,7 @@ def find_valid_insertion(route: List[Task], lonely_task: Task, travel_modes: Lis
     objectives = []
 
     # na początku sprawdzić, czy zadanie tego dnia jest dostępne!
-    if not lonely_task.is_available_today(route_tmp[0].end_date_time):
+    if not lonely_task.is_available_today(route_tmp[0].end_date_time - route_tmp[0].idle_time * minutes):
         return feasible_insertions, objectives
 
     for i in range(len(route_tmp) - 2):  # range to liczba krawędzi
@@ -147,7 +170,13 @@ def find_valid_insertion(route: List[Task], lonely_task: Task, travel_modes: Lis
 
         locations = [route_tmp[i].location, lonely_task.location]
         if i == 0:
-            matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, route_tmp[i].end_date_time)[0]
+            waiting_time = route_tmp[i + 1].get_waiting_time(
+                route_tmp[i].end_date_time - route_tmp[i].idle_time * minutes)
+            if waiting_time is None:
+                continue
+            # jeśli można poczekać w bazie, to czekam w bazie na otwarcie i dla tego czasu sprawdzam dojazdy
+            opening_time = route_tmp[i].end_date_time - route_tmp[i].idle_time * minutes + waiting_time * minutes
+            matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, opening_time)
         else:
             if route_tmp[i].travel_method == 'driving':
                 car_enabled = True
@@ -161,10 +190,10 @@ def find_valid_insertion(route: List[Task], lonely_task: Task, travel_modes: Lis
                 car_enabled = False
                 bike_enabled = False
                 others_enabled = True
-            matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, route_tmp[i].end_date_time,
-                                                  car_enabled=car_enabled, bike_enabled=bike_enabled,
-                                                  others_enabled=others_enabled)[0]
-
+            matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
+                                                                 route_tmp[i].end_date_time, car_enabled=car_enabled,
+                                                                 bike_enabled=bike_enabled,
+                                                                 others_enabled=others_enabled)
         distances = []
         for matrix in matrixes:  # uzyskanie odległości z macierzy
             distance = matrix[0][1]
@@ -172,19 +201,21 @@ def find_valid_insertion(route: List[Task], lonely_task: Task, travel_modes: Lis
         travel_time = min(distances)
 
         matrix_inx = distances.index(travel_time)
-        arrival_time = route_tmp[i].end_date_time + travel_time * minutes
-        waiting_time = route_tmp[i + 1].get_waiting_time(arrival_time)
+        if i == 0:
+            arrival_time = route_tmp[i].end_date_time - route_tmp[i].idle_time * minutes + waiting_time * minutes \
+                           + travel_time * minutes
+        else:
+            arrival_time = route_tmp[i].end_date_time + travel_time * minutes
+        waiting_time = lonely_task.get_waiting_time(arrival_time)
         # jeśli zadanie nie może być wykonane w określonej porze tego dnia, to odrzucenie tego wstawiena
         if waiting_time is None:
-            break
+            continue
         # jeśli można poczekać, to akceptacja wstawienia
         start_time = arrival_time + waiting_time * minutes
         end_time = start_time + lonely_task.duration * minutes
         lonely_task.set_start_end_date_time(start_time, end_time)
-        lonely_task.travel_method = all_modes[matrix_inx]
-        lonely_task.travel_time = travel_time
-        # wstawienie do drogi tmp
-        route_tmp.insert(i + 1, lonely_task)
+        lonely_task.set_travel_parameters(all_modes[matrix_inx], travel_time, cost_matrixes[matrix_inx][0][1])
+        route_tmp.insert(i + 1, lonely_task)  # wstawienie do drogi tmp
 
         # sprawdzenie, czy wstawienie jest dopuszczalne (fix analogicznie jak na początku)
         route_tmp_try = deepcopy(route_tmp)
@@ -200,7 +231,6 @@ def find_valid_insertion(route: List[Task], lonely_task: Task, travel_modes: Lis
 
 def single_insertion(route: List[Task], lonely_task: Task, insertion_inx: int, travel_modes: List[str],
                      transit_modes: List[str] = []):
-
     """
     Funkcja realizująca wstawienie punktu do kursu.
     :param route: kurs
@@ -216,8 +246,13 @@ def single_insertion(route: List[Task], lonely_task: Task, insertion_inx: int, t
 
     locations = [route_tmp[insertion_inx].location, lonely_task.location]
     if insertion_inx == 0:
-        matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
-                                              route_tmp[insertion_inx].end_date_time)[0]
+        waiting_time = route_tmp[insertion_inx + 1].get_waiting_time(route_tmp[insertion_inx].end_date_time
+                                                                     - route_tmp[insertion_inx].idle_time * minutes)
+        if waiting_time is None:
+            return None
+        opening_time = route_tmp[insertion_inx].end_date_time - route_tmp[insertion_inx].idle_time * minutes \
+                       + waiting_time * minutes
+        matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, opening_time)
     else:
         if route_tmp[insertion_inx].travel_method == 'driving':
             car_enabled = True
@@ -231,10 +266,10 @@ def single_insertion(route: List[Task], lonely_task: Task, insertion_inx: int, t
             car_enabled = False
             bike_enabled = False
             others_enabled = True
-        matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
-                                              route_tmp[insertion_inx].end_date_time, car_enabled=car_enabled,
-                                              bike_enabled=bike_enabled, others_enabled=others_enabled)[0]
-
+        matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
+                                                             route_tmp[insertion_inx].end_date_time,
+                                                             car_enabled=car_enabled, bike_enabled=bike_enabled,
+                                                             others_enabled=others_enabled)
     distances = []
     for matrix in matrixes:  # uzyskanie odległości z macierzy
         distance = matrix[0][1]
@@ -242,13 +277,19 @@ def single_insertion(route: List[Task], lonely_task: Task, insertion_inx: int, t
     travel_time = min(distances)
 
     matrix_inx = distances.index(travel_time)
-    arrival_time = route_tmp[insertion_inx].end_date_time + travel_time * minutes
+    if insertion_inx == 0:
+        arrival_time = route_tmp[insertion_inx].end_date_time - route_tmp[insertion_inx].idle_time * minutes\
+                       + waiting_time * minutes + travel_time * minutes
+    else:
+        arrival_time = route_tmp[insertion_inx].end_date_time + travel_time * minutes
     waiting_time = route_tmp[insertion_inx + 1].get_waiting_time(arrival_time)
+    if waiting_time is None:
+        return None
     start_time = arrival_time + waiting_time * minutes
     end_time = start_time + lonely_task.duration * minutes
     lonely_task.set_start_end_date_time(start_time, end_time)
-    lonely_task.travel_method = all_modes[matrix_inx]
-    lonely_task.travel_time = travel_time
+    lonely_task.set_travel_parameters(all_modes[matrix_inx], travel_time, cost_matrixes[matrix_inx][0][1])
+
     route_tmp.insert(insertion_inx + 1, lonely_task)
 
     route_tmp = fix_route(route_tmp, insertion_inx, travel_modes, transit_modes)
@@ -293,7 +334,6 @@ def intra_route_reinsertion(route: List[Task], travel_modes: List[str], transit_
 
 
 def verify_shift(route: List[Task], next_route: List[Task]):
-
     """
     Funkcja sprawdzająca, czy po edycji kursu czekanie w bazie jest opłacalne.
     :param route: kurs
@@ -304,7 +344,7 @@ def verify_shift(route: List[Task], next_route: List[Task]):
     date1 = route[-1].start_date_time
     date2 = next_route[0].end_date_time
 
-    only_date1 = (D @ date1.day/date1.month/date1.year)[00:00]
+    only_date1 = (D @ date1.day / date1.month / date1.year)[00:00]
     only_date2 = (D @ date2.day / date2.month / date2.year)[00:00]
 
     # kolejny kurs jest już innego dnia -> w porządku
@@ -318,8 +358,8 @@ def verify_shift(route: List[Task], next_route: List[Task]):
         return False
 
 
-def inter_route_shift(route1: List[Task], route2: List[Task], route3: List[Task], travel_modes: List[str], transit_modes: List[str] = []):
-
+def inter_route_shift(route1: List[Task], route2: List[Task], route3: List[Task] | None, travel_modes: List[str],
+                      transit_modes: List[str] = []):
     """
     NIETESTOWANE! Funkcja przenosząca zadanie z kursu 1. do kursu 2.
     :param route1: kurs 1.
@@ -348,12 +388,8 @@ def inter_route_shift(route1: List[Task], route2: List[Task], route3: List[Task]
         best_inx = objectives.index(best)
         best_inx = feasible_insertions[best_inx]
         route2_tmp = single_insertion(route2_tmp, random_task, best_inx, travel_modes, transit_modes)
-
-        if verify_shift(route2_tmp, route3):    # sprawdzenie czy edycja nie zaburzy kolejnego kursu
-            return route1_tmp, route2_tmp
-        else:
-            return None
-
+        # weryfikacja w alg. głównym
+        return route1_tmp, route2_tmp
     else:
         return None
 
@@ -368,7 +404,7 @@ def count_tasks_daily(solution: Dict[BeautifulDate, List[Task]], day: BeautifulD
 
     task_count = 0
     for start_date, route in solution.items():
-        if day == (D @ start_date.day/start_date.month/start_date.year)[00:00]:
+        if day == (D @ start_date.day / start_date.month / start_date.year)[00:00]:
             task_count += len(route) - 1
 
     return task_count
@@ -376,7 +412,6 @@ def count_tasks_daily(solution: Dict[BeautifulDate, List[Task]], day: BeautifulD
 
 def pick_the_last_task_daily(solution: Dict[BeautifulDate, List[Task]], day: BeautifulDate, travel_modes: List[str],
                              transit_modes: List[str] = []):
-
     """
     Funkcja usuwająca ostatnie zadanie w ciągu wybranego dnia.
     :param solution: rozwiązanie
@@ -390,22 +425,22 @@ def pick_the_last_task_daily(solution: Dict[BeautifulDate, List[Task]], day: Bea
 
     # uzyskanie listy kursów z dnia
     for start_date, route in solution.items():
-        if day == (D @ start_date.day/start_date.month/start_date.year)[00:00]:
+        if day == (D @ start_date.day / start_date.month / start_date.year)[00:00]:
             routes_tmp.append(deepcopy(route))
 
     route_tmp = routes_tmp[-1]  # ostatni kurs
     length = len(route_tmp)
     lonely_task = route_tmp.pop(-2)  # usunięcie ostatniego zadania
     if length > 3:  # dla kursów wielozadaniowych
-        route_tmp = fix_route(route_tmp, length-3, travel_modes, transit_modes)   # naprawa kursu - wcześniejszy powrót
-    else:   # dla jednozadaniowych (lista ma 3 elementy)
-        route_tmp = []      # usunięcie drogi
+        # none nie powinien się zdarzyć
+        route_tmp = fix_route(route_tmp, length - 3, travel_modes, transit_modes)  # naprawa kursu - wcześniejszy powrót
+    else:  # dla jednozadaniowych (lista ma 3 elementy)
+        route_tmp = []  # usunięcie drogi
 
     return route_tmp, lonely_task
 
 
 def replace_route(solution: Dict[BeautifulDate, List[Task]], new_route: List[Task], lonely_task: Task):
-
     """
     Podmiana kursu.
     :param solution: rozwiązanie
@@ -423,7 +458,6 @@ def replace_route(solution: Dict[BeautifulDate, List[Task]], new_route: List[Tas
 
 def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, travel_modes: List[str],
                          transit_modes: List[str]):
-
     """
     Funkcja tworząca krótki kurs baza-zadanie-baza.
     :param depot: baza
@@ -446,8 +480,8 @@ def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, t
 
     last_stop = deepcopy(depot)
     all_modes = get_all_travel_modes(travel_modes, transit_modes)
-    locations = [depot.location, task.location]
-    matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time)[0]
+    locations = [last_stop.location, task.location]
+    matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time)
     distances = []
     for matrix in matrixes:
         distances.append(matrix[0][1])
@@ -459,12 +493,13 @@ def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, t
     task.set_start_end_date_time(arrival_time, end_time)
     task.travel_time = min_distance
     task.travel_method = all_modes[min_inx]
+    task.set_travel_parameters(all_modes[min_inx], min_distance, cost_matrixes[min_inx][0][1])
     depot.end_date_time = current_time
 
     short_route = [depot, task]
 
     # droga powrotna
-    matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, end_time)[0]
+    matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, end_time)
     distances = []
     for matrix in matrixes:
         distances.append(matrix[1][0])
@@ -472,8 +507,7 @@ def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, t
     min_inx = distances.index(min_distance)
 
     last_stop.start_date_time = current_time + min_distance * minutes
-    last_stop.travel_time = min_distance
-    last_stop.travel_method = all_modes[min_inx]
+    task.set_travel_parameters(all_modes[min_inx], min_distance, cost_matrixes[min_inx][0][1])
     short_route.append(last_stop)
 
     return short_route
@@ -481,7 +515,6 @@ def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, t
 
 def shift_from_the_most_busy_day(solution: Dict[BeautifulDate, List[Task]], T_begin: BeautifulDate,
                                  T_end: BeautifulDate, travel_modes: List[str], transit_modes: List[str] = []):
-
     """
     NIETESTOWANE! Operator sąsiedztwa - przenosi ostatnie zadanie z najbardziej zajętego dnia na inny.
     :param solution: rozwiązanie
@@ -489,10 +522,10 @@ def shift_from_the_most_busy_day(solution: Dict[BeautifulDate, List[Task]], T_be
     :param T_end: koniec harmonogramu
     :param travel_modes: metody transportu
     :param transit_modes: szczegóły komunikacji miejskiej
-    :return: zmodyfikowane rozwiązanie (ZMIENIĆ NA KOPIĘ!)
+    :return: zmodyfikowane rozwiązanie albo og, jeśli zmiany się nie powiodły
     """
 
-    begin_date = (D @ T_begin.day/T_begin.month/T_begin.year)[00:00]
+    begin_date = (D @ T_begin.day / T_begin.month / T_begin.year)[00:00]
     end_date = (D @ T_end.day / T_end.month / T_end.year)[00:00]
 
     current_date = begin_date
@@ -527,33 +560,34 @@ def shift_from_the_most_busy_day(solution: Dict[BeautifulDate, List[Task]], T_be
     short_route = None
     for start_date, route in solution.items():
         # jeśli ten dzień już coś ma -> wstawić do kursu (pierwszego możliwego)
-        if new_day == (D @ start_date.day/start_date.month/start_date.year)[00:00]:
+        if new_day == (D @ start_date.day / start_date.month / start_date.year)[00:00]:
             feasible_insertions, objectives = find_valid_insertion(route, lonely_task, travel_modes, transit_modes)
             if feasible_insertions:
                 best = min(objectives)
                 best_inx = objectives.index(best)
                 best_inx = feasible_insertions[best_inx]
                 route = single_insertion(route, lonely_task, best_inx, travel_modes, transit_modes)
-                solution[start_date] = route
-                insertion = True
-                break   # jeśli wstawienie się powiodło - koniec pętli
-
-        # w przypadku, gdy okazało się, że w wybranym dniu nic nie ma
-        elif new_day < (D @ start_date.day/start_date.month/start_date.year)[00:00]:
-            depot = deepcopy(route[0])
-            short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
-            if short_route is not None:
-                creation = True
+                if route is not None:
+                    solution[start_date] = route    # wstawienie aktualizacji w nowym dniu
+                    insertion = True
+                else:
+                    return solution     # jak się nie udało, to zakończ
             break
 
-    if insertion:   # jeśli wstawienie się powiodło - podmiana kursu na skrócony
+        # w przypadku, gdy okazało się, że w wybranym dniu nic nie ma
+        elif new_day < (D @ start_date.day / start_date.month / start_date.year)[00:00]:
+            depot = deepcopy(route[0])
+            short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
+            break
+
+    if insertion:  # jeśli wstawienie się powiodło - podmiana kursu na skrócony
         solution_tmp = deepcopy(solution)
-        solution_tmp = replace_route(solution_tmp, route_tmp, lonely_task)
+        solution_tmp = replace_route(solution_tmp, route_tmp, lonely_task)      # update tego og. zajętego dnia
         return solution_tmp
     elif short_route is not None:  # jeśli został stworzony nowy kurs - podmiana i dodanie nowego kursu do rozwiązania
         solution_tmp = deepcopy(solution)
         solution_tmp = replace_route(solution_tmp, route_tmp, lonely_task)
-        solution_tmp[short_route[0].end_date_time] = short_route
+        solution_tmp[short_route[0].end_date_time] = short_route        # dodaje całkowicie nowy dzień do rozwiązania
         return solution_tmp
     else:
         return solution
@@ -562,13 +596,13 @@ def shift_from_the_most_busy_day(solution: Dict[BeautifulDate, List[Task]], T_be
 def shift_from_the_least_busy_day(solution: Dict[BeautifulDate, List[Task]], T_begin: BeautifulDate,
                                   T_end: BeautifulDate, travel_modes: List[str], transit_modes: List[str] = []):
     """
-    NIEDOKOŃCZONE
-    :param solution:
-    :param T_begin:
-    :param T_end:
-    :param travel_modes:
-    :param transit_modes:
-    :return:
+    NIETESTOWANE! Operator sąsiedztwa - przenosi ostatnie zadanie z najbardziej zajętego dnia na inny.
+    :param solution: rozwiązanie
+    :param T_begin: początek harmonogramu
+    :param T_end: koniec harmonogramu
+    :param travel_modes: metody transportu
+    :param transit_modes: szczegóły komunikacji miejskiej
+    :return: zmodyfikowane rozwiązanie
     """
 
     begin_date = (D @ T_begin.day / T_begin.month / T_begin.year)[00:00]
@@ -584,6 +618,61 @@ def shift_from_the_least_busy_day(solution: Dict[BeautifulDate, List[Task]], T_b
         if task_count_tmp < task_count:
             task_count = task_count_tmp
             least_busy_day = current_date
+
+    # wybór ostatniego zadania
+    route_tmp, lonely_task = pick_the_last_task_daily(solution, least_busy_day, travel_modes, transit_modes)
+
+    num_days = (end_date - begin_date).total_seconds() / 60 / 60 / 24
+    num_days = int(num_days)
+
+    # wyznaczenie innego, losowego dnia
+    new_day = current_date
+    while current_date == new_day:
+        delta_days = randint(1, num_days)
+        if delta_days == 0:
+            new_day = begin_date + delta_days * day
+        else:
+            new_day = begin_date + delta_days * days
+
+    # dla tego dnia trzeba zrobić wstawienie
+    insertion = False
+    short_route = None
+    for start_date, route in solution.items():
+        # jeśli ten dzień już coś ma -> wstawić do kursu (pierwszego możliwego)
+        if new_day == (D @ start_date.day / start_date.month / start_date.year)[00:00]:
+            feasible_insertions, objectives = find_valid_insertion(route, lonely_task, travel_modes, transit_modes)
+            if feasible_insertions:
+                best = min(objectives)
+                best_inx = objectives.index(best)
+                best_inx = feasible_insertions[best_inx]
+                route = single_insertion(route, lonely_task, best_inx, travel_modes, transit_modes)
+                if route is not None:
+                    solution[start_date] = route  # wstawienie aktualizacji w nowym dniu
+                    insertion = True
+                else:
+                    return solution  # jak się nie udało, to zakończ
+            break
+
+            # w przypadku, gdy okazało się, że w wybranym dniu nic nie ma
+        elif new_day < (D @ start_date.day / start_date.month / start_date.year)[00:00]:
+            depot = deepcopy(route[0])
+            short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
+            break
+
+    if insertion:  # jeśli wstawienie się powiodło - podmiana kursu na skrócony
+        solution_tmp = deepcopy(solution)
+        if len(route_tmp) == 2:     # jeśli w tym dniu została tylko baza-baza, to usuwany jest ten kurs
+            del solution_tmp[least_busy_day]
+        else:
+            solution_tmp = replace_route(solution_tmp, route_tmp, lonely_task)  # update tego og. zajętego dnia
+        return solution_tmp
+    elif short_route is not None:  # jeśli został stworzony nowy kurs - podmiana i dodanie nowego kursu do rozwiązania
+        solution_tmp = deepcopy(solution)
+        solution_tmp = replace_route(solution_tmp, route_tmp, lonely_task)
+        solution_tmp[short_route[0].end_date_time] = short_route  # dodaje całkowicie nowy dzień do rozwiązania
+        return solution_tmp
+    else:
+        return solution
 
 
 # TESTOWANIE

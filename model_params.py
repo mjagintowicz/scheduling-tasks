@@ -27,6 +27,8 @@ class Task:
         self.travel_cost = None     # koszt podróży (kryterium 2)
         self.transit_details = []
 
+        self.idle_time = None
+
     def set_time_windows(self, window_left: BeautifulDate, window_right: BeautifulDate):
         """
         Zawężanie czasu na realizację.

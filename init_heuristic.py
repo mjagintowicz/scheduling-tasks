@@ -347,7 +347,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
     while True:  # przetworzenie konkretnego dnia
         current_task = depot
         current_task_inx = tasks.index(current_task)
-        route = [current_task]  # kokretny kurs
+        route = [deepcopy(current_task)]  # kokretny kurs
         route_start_time = current_time
 
         while True:  # tworzenie konkretnego kursu
