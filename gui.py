@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, \
-    QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox, QLineEdit
+    QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox, QLineEdit, QSpinBox
 from PyQt6.QtCore import Qt, QDate, QTime, QTimer
 from PyQt6.QtGui import QFont
 from datetime import timedelta
@@ -21,7 +21,7 @@ class StartWindow(QMainWindow):
         self.setWindowTitle('Optymalizacja harmonogramu')
 
         # rozmiar okna
-        self.setFixedSize(1200, 850)
+        self.setFixedSize(1000, 750)
 
         # layout główny
         self.tab_layout = QVBoxLayout()
@@ -80,7 +80,7 @@ class TaskTab(QWidget):
 
         # layout do przycisków
         self.button_layout = QVBoxLayout()
-        self.button_layout.setContentsMargins(200, 250, 100, 250)
+        self.button_layout.setContentsMargins(100, 190, 100, 190)
         self.button_layout.addWidget(self.start_button)
         self.button_layout.addWidget(self.tasks_button)
         self.button_layout.addWidget(self.log_out_button)
@@ -107,10 +107,10 @@ class TaskTab(QWidget):
 
         # etykiety
         self.begin_label = QLabel('Początek harmonogramu:')
-        self.begin_label.setFixedSize(200, 20)
+        self.begin_label.setFixedSize(200, 30)
 
         self.end_label = QLabel('Koniec harmonogramu:')
-        self.end_label.setFixedSize(200, 20)
+        self.end_label.setFixedSize(200, 30)
 
         # layout na informacje o dacie i godzinie
         self.full_date_time_layout = QVBoxLayout()
@@ -138,7 +138,7 @@ class TaskTab(QWidget):
         self.full_date_time_layout.addLayout(self.begin_date_time_layout)
         self.full_date_time_layout.addLayout(self.end_label_layout)
         self.full_date_time_layout.addLayout(self.end_date_time_layout)
-        self.full_date_time_layout.setContentsMargins(0, 320, 200, 320)
+        self.full_date_time_layout.setContentsMargins(0, 270, 180, 270)
 
         # layout główny
         self.start_layout = QHBoxLayout()
@@ -381,6 +381,7 @@ class ParamTab(QWidget):
 
         # checkboxy
         self.travel_tabel = QLabel("Metody transportu:")
+        self.travel_tabel.setFixedSize(150, 15)
 
         self.check_walking = QCheckBox("Pieszo")
         self.check_walking.stateChanged.connect(lambda: self.update_travel("walking"))
@@ -407,23 +408,117 @@ class ParamTab(QWidget):
 
         self.params_layout = QVBoxLayout()
         self.params_label = QLabel("Parametry:")
+        self.params_label.setFixedSize(150, 15)
+
+        self.temp_begin_layout = QHBoxLayout()
+        self.temp_begin_label = QLabel("Temperatura początkowa:")
+        self.temp_begin_label.setFixedSize(200, 30)
+        self.temp_begin_spin = QSpinBox()
+        self.temp_begin_spin.setFixedSize(80, 30)
+        self.temp_begin_layout.addWidget(self.temp_begin_label)
+        self.temp_begin_layout.addWidget(self.temp_begin_spin)
+
+        self.temp_end_layout = QHBoxLayout()
+        self.temp_end_label = QLabel("Temperatura końcowa:")
+        self.temp_end_label.setFixedSize(200, 30)
+        self.temp_end_spin = QSpinBox()
+        self.temp_end_spin.setFixedSize(80, 30)
+        self.temp_end_layout.addWidget(self.temp_end_label)
+        self.temp_end_layout.addWidget(self.temp_end_spin)
+
+        self.alfa_layout = QHBoxLayout()
+        self.alfa_label = QLabel("Współczynnik chłodzenia:")
+        self.alfa_label.setFixedSize(200, 30)
+        self.alfa_spin = QSpinBox()
+        self.alfa_spin.setFixedSize(80, 30)
+        self.alfa_layout.addWidget(self.alfa_label)
+        self.alfa_layout.addWidget(self.alfa_spin)
+
+        self.series_layout = QHBoxLayout()
+        self.series_label = QLabel("Liczba serii:")
+        self.series_label.setFixedSize(200, 30)
+        self.series_spin = QSpinBox()
+        self.series_spin.setFixedSize(80, 30)
+        self.series_layout.addWidget(self.series_label)
+        self.series_layout.addWidget(self.series_spin)
+
         self.params_layout.addWidget(self.params_label)
+        self.params_layout.addLayout(self.temp_begin_layout)
+        self.params_layout.addLayout(self.temp_end_layout)
+        self.params_layout.addLayout(self.alfa_layout)
+        self.params_layout.addLayout(self.series_layout)
+
+        # layout na sąsiedztwo
+        self.neighbourhood_layout = QVBoxLayout()
+
+        self.neighbourhood_label = QLabel("Prawdopodobieństwa operatorów sąsiedztwa:")
+        self.neighbourhood_label.setFixedSize(250, 30)
+
+        self.operator1_layout = QHBoxLayout()
+        self.operator1_label = QLabel("Intra-route reinsertion:")
+        self.operator1_label.setFixedSize(200, 30)
+        self.operator1_layout.addWidget(self.operator1_label)
+        self.operator1_spin = QSpinBox()
+        self.operator1_spin.setFixedSize(80, 30)
+        self.operator1_spin.setRange(0, 1)
+        self.operator1_layout.addWidget(self.operator1_spin)
+
+        self.operator2_layout = QHBoxLayout()
+        self.operator2_label = QLabel("Inter-route shift random:")
+        self.operator2_label.setFixedSize(200, 30)
+        self.operator2_layout.addWidget(self.operator2_label)
+        self.operator2_spin = QSpinBox()
+        self.operator2_spin.setFixedSize(80, 30)
+        self.operator2_spin.setRange(0, 1)
+        self.operator2_layout.addWidget(self.operator2_spin)
+
+        self.operator3_layout = QHBoxLayout()
+        self.operator3_label = QLabel("Inter-route shift (the most busy day):")
+        self.operator3_label.setFixedSize(200, 30)
+        self.operator3_layout.addWidget(self.operator3_label)
+        self.operator3_spin = QSpinBox()
+        self.operator3_spin.setFixedSize(80, 30)
+        self.operator3_spin.setRange(0, 1)
+        self.operator3_layout.addWidget(self.operator3_spin)
+
+        self.operator4_layout = QHBoxLayout()
+        self.operator4_label = QLabel("Inter-route shift (the least busy day):")
+        self.operator4_label.setFixedSize(200, 30)
+        self.operator4_layout.addWidget(self.operator4_label)
+        self.operator4_spin = QSpinBox()
+        self.operator4_spin.setFixedSize(80, 30)
+        self.operator4_spin.setRange(0, 1)
+        self.operator4_layout.addWidget(self.operator4_spin)
+
+        self.neighbourhood_layout.addWidget(self.neighbourhood_label)
+        self.neighbourhood_layout.addLayout(self.operator1_layout)
+        self.neighbourhood_layout.addLayout(self.operator2_layout)
+        self.neighbourhood_layout.addLayout(self.operator3_layout)
+        self.neighbourhood_layout.addLayout(self.operator4_layout)
 
         # przycisk rozpoczęcia algorytmu
         self.algorithm_button = QPushButton("Algorytm")
         self.algorithm_button.setFixedSize(200, 75)
         self.algorithm_button.clicked.connect(self.generate_initial_solution)
-        self.depot_location = QLineEdit("Lokalizacja bazy:")
+
+        # wpisywanie bazy
+        self.depot_layout = QVBoxLayout()
+        self.depot_label = QLabel("Lokalizacja bazy:")
+        self.depot_label.setFixedSize(200, 30)
+        self.depot_location = QLineEdit()
+        self.depot_location.setFixedSize(200, 30)
+        self.depot_layout.addWidget(self.depot_label)
+        self.depot_layout.addWidget(self.depot_location)
 
         self.button_layout = QVBoxLayout()
-        self.button_layout.addWidget(self.depot_location)
         self.button_layout.addWidget(self.algorithm_button)
-        self.button_layout.setContentsMargins(100, 300, 200, 300)
 
         self.choice_layout = QVBoxLayout()
         self.choice_layout.addLayout(self.travel_layout)
         self.choice_layout.addLayout(self.params_layout)
-        self.choice_layout.setContentsMargins(200, 300, 100, 300)
+        self.choice_layout.addLayout(self.neighbourhood_layout)
+        self.choice_layout.addLayout(self.depot_layout)
+        self.choice_layout.setContentsMargins(0, 20, 100, 20)
 
         self.layout.addLayout(self.choice_layout)
         self.layout.addLayout(self.button_layout)
