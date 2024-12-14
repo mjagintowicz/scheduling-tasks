@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, \
-    QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox, QLineEdit, QSpinBox
+    QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox, QLineEdit, QSpinBox, QDoubleSpinBox
 from PyQt6.QtCore import Qt, QDate, QTime, QTimer
 from PyQt6.QtGui import QFont
 from datetime import timedelta
@@ -35,6 +35,13 @@ class StartWindow(QMainWindow):
         self.modes = []     # informacje na temat wybranych środków transportu
         self.transit_modes = []
         self.solution = {}
+
+        self.temp_0 = None
+        self.temp_end = None
+        self.alpha = None
+        self.series_num = None
+
+        self.neighbourhood_prob = [0, 0, 0, 0]
 
         # zakładki
         self.tabs = QTabWidget()
@@ -381,7 +388,7 @@ class ParamTab(QWidget):
 
         # checkboxy
         self.travel_tabel = QLabel("Metody transportu:")
-        self.travel_tabel.setFixedSize(150, 15)
+        self.travel_tabel.setFixedSize(150, 20)
 
         self.check_walking = QCheckBox("Pieszo")
         self.check_walking.stateChanged.connect(lambda: self.update_travel("walking"))
@@ -407,14 +414,15 @@ class ParamTab(QWidget):
         self.travel_layout.addWidget(self.check_bike)
 
         self.params_layout = QVBoxLayout()
-        self.params_label = QLabel("Parametry:")
-        self.params_label.setFixedSize(150, 15)
+        self.params_label = QLabel("Parametry algorytmu:")
+        self.params_label.setFixedSize(150, 20)
 
         self.temp_begin_layout = QHBoxLayout()
         self.temp_begin_label = QLabel("Temperatura początkowa:")
         self.temp_begin_label.setFixedSize(200, 30)
         self.temp_begin_spin = QSpinBox()
         self.temp_begin_spin.setFixedSize(80, 30)
+        self.temp_begin_spin.valueChanged.connect(lambda: self.set_temp_0)
         self.temp_begin_layout.addWidget(self.temp_begin_label)
         self.temp_begin_layout.addWidget(self.temp_begin_spin)
 
@@ -423,36 +431,40 @@ class ParamTab(QWidget):
         self.temp_end_label.setFixedSize(200, 30)
         self.temp_end_spin = QSpinBox()
         self.temp_end_spin.setFixedSize(80, 30)
+        self.temp_end_spin.valueChanged.connect(lambda: self.set_temp_end)
         self.temp_end_layout.addWidget(self.temp_end_label)
         self.temp_end_layout.addWidget(self.temp_end_spin)
 
-        self.alfa_layout = QHBoxLayout()
-        self.alfa_label = QLabel("Współczynnik chłodzenia:")
-        self.alfa_label.setFixedSize(200, 30)
-        self.alfa_spin = QSpinBox()
-        self.alfa_spin.setFixedSize(80, 30)
-        self.alfa_layout.addWidget(self.alfa_label)
-        self.alfa_layout.addWidget(self.alfa_spin)
+        self.alpha_layout = QHBoxLayout()
+        self.alpha_label = QLabel("Współczynnik chłodzenia:")
+        self.alpha_label.setFixedSize(200, 30)
+        self.alpha_spin = QDoubleSpinBox()
+        self.alpha_spin.setRange(0, 1)
+        self.alpha_spin.setFixedSize(80, 30)
+        self.alpha_spin.valueChanged.connect(lambda: self.set_alpha)
+        self.alpha_layout.addWidget(self.alpha_label)
+        self.alpha_layout.addWidget(self.alpha_spin)
 
         self.series_layout = QHBoxLayout()
         self.series_label = QLabel("Liczba serii:")
         self.series_label.setFixedSize(200, 30)
         self.series_spin = QSpinBox()
         self.series_spin.setFixedSize(80, 30)
+        self.series_spin.valueChanged.connect(lambda: self.set_series_num)
         self.series_layout.addWidget(self.series_label)
         self.series_layout.addWidget(self.series_spin)
 
         self.params_layout.addWidget(self.params_label)
         self.params_layout.addLayout(self.temp_begin_layout)
         self.params_layout.addLayout(self.temp_end_layout)
-        self.params_layout.addLayout(self.alfa_layout)
+        self.params_layout.addLayout(self.alpha_layout)
         self.params_layout.addLayout(self.series_layout)
 
         # layout na sąsiedztwo
         self.neighbourhood_layout = QVBoxLayout()
 
-        self.neighbourhood_label = QLabel("Prawdopodobieństwa operatorów sąsiedztwa:")
-        self.neighbourhood_label.setFixedSize(250, 30)
+        self.neighbourhood_label = QLabel("Prawdopodobieństwa operatorów sąsiedztwa [%]:")
+        self.neighbourhood_label.setFixedSize(270, 30)
 
         self.operator1_layout = QHBoxLayout()
         self.operator1_label = QLabel("Intra-route reinsertion:")
@@ -460,7 +472,8 @@ class ParamTab(QWidget):
         self.operator1_layout.addWidget(self.operator1_label)
         self.operator1_spin = QSpinBox()
         self.operator1_spin.setFixedSize(80, 30)
-        self.operator1_spin.setRange(0, 1)
+        self.operator1_spin.setRange(0, 100)
+        self.operator1_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities)
         self.operator1_layout.addWidget(self.operator1_spin)
 
         self.operator2_layout = QHBoxLayout()
@@ -469,7 +482,8 @@ class ParamTab(QWidget):
         self.operator2_layout.addWidget(self.operator2_label)
         self.operator2_spin = QSpinBox()
         self.operator2_spin.setFixedSize(80, 30)
-        self.operator2_spin.setRange(0, 1)
+        self.operator2_spin.setRange(0, 100)
+        self.operator2_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities)
         self.operator2_layout.addWidget(self.operator2_spin)
 
         self.operator3_layout = QHBoxLayout()
@@ -478,7 +492,8 @@ class ParamTab(QWidget):
         self.operator3_layout.addWidget(self.operator3_label)
         self.operator3_spin = QSpinBox()
         self.operator3_spin.setFixedSize(80, 30)
-        self.operator3_spin.setRange(0, 1)
+        self.operator3_spin.setRange(0, 100)
+        self.operator3_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities)
         self.operator3_layout.addWidget(self.operator3_spin)
 
         self.operator4_layout = QHBoxLayout()
@@ -487,7 +502,8 @@ class ParamTab(QWidget):
         self.operator4_layout.addWidget(self.operator4_label)
         self.operator4_spin = QSpinBox()
         self.operator4_spin.setFixedSize(80, 30)
-        self.operator4_spin.setRange(0, 1)
+        self.operator4_spin.setRange(0, 100)
+        self.operator4_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities)
         self.operator4_layout.addWidget(self.operator4_spin)
 
         self.neighbourhood_layout.addWidget(self.neighbourhood_label)
@@ -495,11 +511,12 @@ class ParamTab(QWidget):
         self.neighbourhood_layout.addLayout(self.operator2_layout)
         self.neighbourhood_layout.addLayout(self.operator3_layout)
         self.neighbourhood_layout.addLayout(self.operator4_layout)
+        self.probabilities_sum = 0
 
         # przycisk rozpoczęcia algorytmu
         self.algorithm_button = QPushButton("Algorytm")
         self.algorithm_button.setFixedSize(200, 75)
-        self.algorithm_button.clicked.connect(self.generate_initial_solution)
+        self.algorithm_button.clicked.connect(self.generate_solution)
 
         # wpisywanie bazy
         self.depot_layout = QVBoxLayout()
@@ -580,7 +597,47 @@ class ParamTab(QWidget):
                     self.parent.modes.remove("transit")
                 self.parent.transit_modes.remove(mode)
 
-    def generate_initial_solution(self):
+    def set_temp_0(self):
+        """
+        Ustawienie temperatury początkowej.
+        :return:
+        """
+        self.parent.temp_0 = self.temp_begin_spin.value()
+
+    def set_temp_end(self):
+        """
+        Ustawienie temperatury końcowej.
+        :return:
+        """
+        self.parent.temp_end = self.temp_end_spin.value()
+
+    def set_alpha(self):
+        """
+        Ustawienie współczynnika chłodzenia.
+        :return:
+        """
+        self.parent.alpha = self.alpha_spin.value()
+
+    def set_series_num(self):
+        """
+        Ustawienie liczby serii.
+        :return:
+        """
+        self.parent.series_num = self.series_spin.value()
+
+    def set_neighbourhood_probabilities(self):
+        """
+        Ustawienie prawdopodobieństw operatorów sąsiedztwa.
+        :return:
+        """
+        self.parent.neighbourhood_prob[0] = self.operator1_spin.value()
+        self.parent.neighbourhood_prob[1] = self.operator2_spin.value()
+        self.parent.neighbourhood_prob[2] = self.operator3_spin.value()
+        self.parent.neighbourhood_prob[3] = self.operator4_spin.value()
+
+        self.probabilities_sum = sum(self.parent.neighbourhood_prob)
+
+    def generate_solution(self):
         """
         Generacja rozwiązania początkowego (inicjalizacja).
         :return:
@@ -589,10 +646,24 @@ class ParamTab(QWidget):
         if not self.parent.T_begin or not self.parent.T_end or not self.parent.tasks_obtained:
             dlg = DialogWindow("Błąd!", "Pobierz zadania z kalendarza.")
             dlg.exec()
-        elif validate_location(self.depot_location.text()):
+        elif not self.parent.modes:
+            dlg = DialogWindow("Błąd!", "Wybierz co najmniej jedną metodę podróży.")
+            dlg.exec()
+        elif self.parent.temp_0 >= self.parent.temp_end:
+            dlg = DialogWindow("Błąd!", "Podaj poprawne wartości temperatury.")
+            dlg.exec()
+        elif self.parent.alpha >= 1 or self.parent.alpha <= 0:
+            dlg = DialogWindow("Błąd!", "Podaj poprawny współczynnik chłodzenia.")
+            dlg.exec()
+        elif self.probabilities_sum != 100:
+            dlg = DialogWindow("Błąd!", "Suma prawdopodobieństw musi wynosić 100%.")
+            dlg.exec()
+        elif not validate_location(self.depot_location.text()):
+            dlg = DialogWindow("Błąd!", "Podaj poprawny adres startowy.")
+            dlg.exec()
+        else:
             depot = create_depot(self.depot_location.text(), self.parent.T_begin, self.parent.T_end)
             self.parent.tasks.insert(0, depot)
-            self.parent.solution = initial_solution(self.parent.T_begin, self.parent.T_end, self.parent.tasks, self.parent.modes)
-        else:
-            dlg = DialogWindow("Błąd!", "Podaj poprawny adres startowy.")
+
+            dlg = DialogWindow("Generowanie!", "*_*")
             dlg.exec()
