@@ -42,6 +42,7 @@ class StartWindow(QMainWindow):
         self.series_num = None
 
         self.neighbourhood_prob = [0, 0, 0, 0]
+        self.weights = [0, 0, 0]
 
         # zakładki
         self.tabs = QTabWidget()
@@ -450,6 +451,7 @@ class ParamTab(QWidget):
         self.series_label.setFixedSize(200, 30)
         self.series_spin = QSpinBox()
         self.series_spin.setFixedSize(80, 30)
+        self.series_spin.setRange(1, 100)
         self.series_spin.valueChanged.connect(lambda: self.set_series_num)
         self.series_layout.addWidget(self.series_label)
         self.series_layout.addWidget(self.series_spin)
@@ -527,6 +529,44 @@ class ParamTab(QWidget):
         self.depot_layout.addWidget(self.depot_label)
         self.depot_layout.addWidget(self.depot_location)
 
+        # wagi funkcji celu
+        self.weights_layout = QVBoxLayout()
+        self.weights_label = QLabel("Wagi kryteriów funkcji celu [%]:")
+        self.weights_label.setFixedSize(200, 30)
+        self.weights_layout.addWidget(self.weights_label)
+        self.weights_sum = 0
+
+        self.weight1_layout = QHBoxLayout()
+        self.weight1_label = QLabel("Czas podróży:")
+        self.weight1_label.setFixedSize(200, 30)
+        self.weight1_spin = QSpinBox()
+        self.weight1_spin.setFixedSize(80, 30)
+        self.weight1_spin.setRange(0, 100)
+        self.weight1_layout.addWidget(self.weight1_label)
+        self.weight1_layout.addWidget(self.weight1_spin)
+
+        self.weight2_layout = QHBoxLayout()
+        self.weight2_label = QLabel("Koszt podróży:")
+        self.weight2_label.setFixedSize(200, 30)
+        self.weight2_spin = QSpinBox()
+        self.weight2_spin.setFixedSize(80, 30)
+        self.weight2_spin.setRange(0, 100)
+        self.weight2_layout.addWidget(self.weight2_label)
+        self.weight2_layout.addWidget(self.weight2_spin)
+
+        self.weight3_layout = QHBoxLayout()
+        self.weight3_label = QLabel("Czas oczekiwania:")
+        self.weight3_label.setFixedSize(200, 30)
+        self.weight3_spin = QSpinBox()
+        self.weight3_spin.setFixedSize(80, 30)
+        self.weight3_spin.setRange(0, 100)
+        self.weight3_layout.addWidget(self.weight3_label)
+        self.weight3_layout.addWidget(self.weight3_spin)
+
+        self.weights_layout.addLayout(self.weight1_layout)
+        self.weights_layout.addLayout(self.weight2_layout)
+        self.weights_layout.addLayout(self.weight3_layout)
+
         self.button_layout = QVBoxLayout()
         self.button_layout.addWidget(self.algorithm_button)
 
@@ -537,8 +577,12 @@ class ParamTab(QWidget):
         self.choice_layout.addLayout(self.depot_layout)
         self.choice_layout.setContentsMargins(0, 20, 100, 20)
 
+        self.right_layout = QVBoxLayout()
+        self.right_layout.addLayout(self.weights_layout)
+        self.right_layout.addLayout(self.button_layout)
+
         self.layout.addLayout(self.choice_layout)
-        self.layout.addLayout(self.button_layout)
+        self.layout.addLayout(self.right_layout)
         self.setLayout(self.layout)
 
     def update_travel(self, mode):
@@ -637,6 +681,17 @@ class ParamTab(QWidget):
 
         self.probabilities_sum = sum(self.parent.neighbourhood_prob)
 
+    def set_weights(self):
+        """
+        Ustawienie wag dla kryteriów funkcji celu.
+        :return:
+        """
+        self.parent.weights[0] = self.weight1_spin.value()
+        self.parent.weights[1] = self.weight2_spin.value()
+        self.parent.weights[2] = self.weight3_spin.value()
+
+        self.weights_sum = sum(self.parent.weights)
+
     def generate_solution(self):
         """
         Generacja rozwiązania początkowego (inicjalizacja).
@@ -660,6 +715,9 @@ class ParamTab(QWidget):
             dlg.exec()
         elif not validate_location(self.depot_location.text()):
             dlg = DialogWindow("Błąd!", "Podaj poprawny adres startowy.")
+            dlg.exec()
+        elif not self.weights_sum != 100:
+            dlg = DialogWindow("Błąd!", "Suma wag musi wynosić 100%.")
             dlg.exec()
         else:
             depot = create_depot(self.depot_location.text(), self.parent.T_begin, self.parent.T_end)
