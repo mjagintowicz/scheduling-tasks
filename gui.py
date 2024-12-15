@@ -58,6 +58,10 @@ class StartWindow(QMainWindow):
         self.tab2 = ParamTab(self)
         self.tabs.addTab(self.tab2, "Parametry")
 
+        # zakładka 3. - wyniki
+        self.tab3 = ResultTab(self)
+        self.tabs.addTab(self.tab3, "Wyniki")
+
 
 # WCZYTYWANIE DANYCH
 
@@ -725,3 +729,34 @@ class ParamTab(QWidget):
 
             dlg = DialogWindow("Generowanie!", "*_*")
             dlg.exec()
+
+
+class ResultTab(QWidget):
+
+    def __init__(self, parent: StartWindow):
+
+        super(ResultTab, self).__init__()
+
+        self.solution = None
+        self.objectives = []
+
+        self.main_layout = QVBoxLayout()
+
+        self.solution_layout = QHBoxLayout()
+
+        self.text_layout = QVBoxLayout()    # layout na tekst
+
+        self.plot_layout = QVBoxLayout()    # layout na wykres
+
+        self.button_layout = QVBoxLayout()
+        self.send_button = QPushButton("Wyślij do kalendarza")
+        self.send_button.setFixedSize(200, 30)
+        self.button_layout.addWidget(self.send_button)
+        self.button_layout.setContentsMargins(400, 400, 200, 100)
+
+        self.solution_layout.addLayout(self.text_layout)
+        self.solution_layout.addLayout(self.plot_layout)
+
+        self.main_layout.addLayout(self.solution_layout)
+        self.main_layout.addLayout(self.button_layout)
+        self.setLayout(self.main_layout)

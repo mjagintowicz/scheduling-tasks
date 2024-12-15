@@ -55,8 +55,10 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
     current_solution = dict_2_route(current_solution)
 
     best_solution = current_solution
+    best_objectve = get_objective(current_solution, weights)
     operators = [1, 2, 3, 4]
     temp = temp_0
+    all_objectives = [best_objectve]
 
     while temp <= temp_end:
 
@@ -71,10 +73,12 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                 # wybór nowej drogi
                 new_route = intra_route_reinsertion(random_route, travel_modes, transit_modes)
                 if new_route is None:
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
                     temp *= alpha
                     continue
                 new_route.depot_fix()
-                # weryfikacja...
+                # weryfikacja
                 route_inx = current_solution.index(random_route)
                 feasible1 = verify_shift(new_route, current_solution[route_inx-1])
                 feasible2 = verify_shift(current_solution[route_inx+1], new_route)
@@ -84,6 +88,8 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                     new_solution.append(new_route)
                     new_solution.sort(key=lambda x: x.start_date_og)
                 else:
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
                     temp *= alpha
                     continue
 
@@ -98,6 +104,8 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                 new_route1, new_route2 = inter_route_shift(random_route1, random_route2, travel_modes, transit_modes)
                 if new_route1 is None or new_route2 is None:
                     temp *= alpha
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
                     continue
                 new_route1.depot_fix()
                 new_route2.depot_fix()
@@ -117,6 +125,8 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                     new_solution.sort(key=lambda x: x.start_date_og)
                 else:
                     temp *= alpha
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
                     continue
 
             elif operator_choice == 3:
@@ -124,6 +134,8 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                                                             transit_modes)
                 if new_solution == current_solution:
                     temp *= alpha
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
                     continue
                 # weryfikacja, jeśli w którymś miejscu się okaże, że jest źle, to znaczy, że nie ma co
                 feasible = True
@@ -133,6 +145,8 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                         break
                 if not feasible:
                     temp *= alpha
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
                     continue
 
             elif operator_choice == 4:
@@ -140,6 +154,8 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                                                              transit_modes)
                 if new_solution == current_solution:
                     temp *= alpha
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
                     continue
                 feasible = True
                 for j in range(1, len(current_solution)):
@@ -148,10 +164,14 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                         break
                 if not feasible:
                     temp *= alpha
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
                     continue
 
             if get_objective(current_solution, weights) >= get_objective(new_solution, weights):
                 current_solution = new_solution
+                current_objective = get_objective(current_solution, weights)
+                all_objectives.append(current_objective)
                 # aktualizacja idle_times
                 for j in range(len(current_solution)):
                     if j == 0:
@@ -161,6 +181,7 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
 
                 if get_objective(new_solution, weights) <= get_objective(best_solution, weights):
                     best_solution = new_solution
+
             else:
                 P = exp(-(get_objective(new_solution, weights) - get_objective(current_solution, weights))/temp)
                 prob_random = uniform(0, 1)
@@ -171,11 +192,16 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                             set_idle_time(new_solution[j], None)
                         else:
                             set_idle_time(new_solution[j], new_solution[j - 1])
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
                 else:
+                    current_objective = get_objective(current_solution, weights)
+                    all_objectives.append(current_objective)
+                    temp *= alpha
                     continue
         temp *= alpha
 
-    return best_solution
+    return best_solution, all_objectives
 
 
 # i co robić z niedopuszczalnymi
