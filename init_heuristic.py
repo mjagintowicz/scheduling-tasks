@@ -1,7 +1,7 @@
 # IMPLEMENTACJA HEURYSTYKI DO GENERACJI ROZWIĄZANIA POCZĄTKOWEGO / SĄSIEDZTWA
 
 from beautiful_date import *
-from model_params import Task
+from model_params import Task, Route, set_idle_time
 from typing import List, Dict
 from map_functions import get_distance_cost_matrixes
 from copy import deepcopy
@@ -454,6 +454,27 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
             current_time = (D @ current_time.day / current_time.month / current_time.year)[00:00]
 
     return solution, finished
+
+def dict_2_route(solution: Dict[BeautifulDate, List[Task]]):
+    """
+    Konwersja wygenerowanego rozwiązania początkowego do typu Route + idle times.
+    :param solution: oryginalne rozwiązanie
+    :return: nowy format rozwiązania
+    """
+    new_solution = []
+    for key, value in solution.items():
+        new_route = Route(key, value)
+        new_solution.append(deepcopy(new_route))
+    if not new_solution:
+        return None
+
+    for i in range(len(new_solution)):
+        if i == 0:
+            set_idle_time(new_solution[i], None)
+        else:
+            set_idle_time(new_solution[i], new_solution[i-1])
+
+    return new_solution
 
 
 def display_solution(solution: Dict[BeautifulDate, List[Task]]):

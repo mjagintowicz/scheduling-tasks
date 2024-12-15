@@ -3,6 +3,7 @@ from map_functions import get_location_working_hours
 from datetime import timedelta, time, datetime
 from typing import List
 
+inf = float('inf')
 
 # KLASA OPISUJĄCA ZADANIE
 class Task:
@@ -195,7 +196,72 @@ class Task:
             return 0
 
 
+# klasa reprezentująca kurs, żeby nie robić już na słownikach
+class Route:
+
+    def __init__(self, start_date: BeautifulDate, tasks: List[Task]):
+
+        self.tasks = tasks
+        self.start_date_only = (D @ start_date.day / start_date.month / start_date.year)[00:00]
+        self.start_date_og = start_date
+
+        # naprawa daty depot
+        self.tasks[0].end_date_time = tasks[1].start_date_time - tasks[1].travel_time * minutes
+
+        self.objective = 0
+
+        self.idle_time = None
+
+        self.infeasable_inx = []       # indeksy zadań, gdzie następują kolizje
+
+    def set_objective(self, weights=None):
+        """
+        Wyliczanie funkcji celu dla konkretnego kursu.
+        :param weights:
+        :return:
+        """
+
+        if weights is None:
+            weights = [0.6, 0, 0.4]
+
+        for inx in range(len(self.tasks)):
+            if inx == 0:
+                continue
+            elif inx == len(self.tasks) - 1:
+                if self.tasks[inx].travel_cost == inf:
+                    self.objective += weights[0] * self.tasks[inx].travel_time
+                else:
+                    self.objective += weights[0] * self.tasks[inx].travel_time + weights[1] *\
+                                      self.tasks[inx].travel_cost
+            else:
+                arrival_date_time = self.tasks[inx-1].end_date_time + self.tasks[inx].travel_time * minutes
+                waiting_time = self.tasks[inx].start_date_time - arrival_date_time
+                waiting_time = waiting_time.total_seconds() / 60
+                if self.tasks[inx].travel_cost == inf:
+                    self.objective += weights[0] * self.tasks[inx].travel_time + weights[2] * waiting_time
+                else:
+                    self.objective += weights[0] * self.tasks[inx].travel_time + weights[1] *\
+                                      self.tasks[inx].travel_cost + weights[2] * waiting_time
+
+    def depot_fix(self):
+        self.tasks[0].end_date_time = self.tasks[1].start_date_time - self.tasks[1].travel_time * minutes
+        self.start_date_og = self.tasks[0].end_date_time
 
 
-#task = Task("test", 120, "BarON - Pub z planszówkami i konsolami w Krakowie", (D @ 12 / 11 / 2024)[8:00], (D @ 14 / 12 / 2024)[8:00])
-#print(task.get_waiting_time((D @ 23 / 11 / 2024)[17:30]))
+def set_idle_time(route: Route, prev_route: Route | None):
+    """
+    Funkcja ustawiająca czas bezczynnego czekania w bazie przed rozpoczęciem kursu.
+    :param route: kurs
+    :param prev_route: poprzedni kurs
+    :return:
+    """
+
+    if prev_route is None or prev_route.start_date_only < route.start_date_only:  # jeśli nie ma poprzedniej drogi albo jest ona innego dnia
+        idle_time = route.tasks[0].end_date_time - route.start_date_og
+    else:
+        idle_time = route.tasks[0].end_date_time - prev_route.tasks[-1].start_date_time
+
+    idle_time = idle_time.total_seconds() / 60
+    route.idle_time = idle_time
+
+
