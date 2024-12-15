@@ -1,13 +1,20 @@
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, \
-    QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox, QLineEdit, QSpinBox, QDoubleSpinBox
+    QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox, QLineEdit, QSpinBox, QDoubleSpinBox, QTableWidget,\
+    QTableWidgetItem
 from PyQt6.QtCore import Qt, QDate, QTime, QTimer
 from PyQt6.QtGui import QFont
 from datetime import timedelta
+import matplotlib
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
 
 from calendar_functions import *
-from model_params import Task
+from model_params import Task, Route
 from init_heuristic import initial_solution, create_depot
 from map_functions import *
+from sa import simmulated_annealing
+
+matplotlib.use('QtAgg')
 
 
 # OKNO STARTOWE
@@ -27,14 +34,15 @@ class StartWindow(QMainWindow):
         self.tab_layout = QVBoxLayout()
 
         # zmienne
-        self.event_ids = []     # unikalne id każdego zadania/eventu
+        self.event_ids = []  # unikalne id każdego zadania/eventu
         self.tasks_obtained = False  # flaga czy zadania zostały już pobrane
         self.tasks = []  # lista pobranych zadań
         self.T_begin = None  # początek i koniec harmonogramu
         self.T_end = None
-        self.modes = []     # informacje na temat wybranych środków transportu
+        self.modes = []  # informacje na temat wybranych środków transportu
         self.transit_modes = []
-        self.solution = {}
+        self.solution = []
+        self.objectives = []
 
         self.temp_0 = None
         self.temp_end = None
@@ -274,12 +282,11 @@ class TaskWindow(QDialog):
         self.ok_layout = QHBoxLayout()
 
         if self.parent.tasks_obtained:
-            begin_dates = []    # listy zapisujące daty
+            begin_dates = []  # listy zapisujące daty
             end_dates = []
             begin_times = []
             end_times = []
             for task in self.parent.tasks:
-
                 start_layout = QHBoxLayout()
                 end_layout = QHBoxLayout()
 
@@ -522,7 +529,7 @@ class ParamTab(QWidget):
         # przycisk rozpoczęcia algorytmu
         self.algorithm_button = QPushButton("Algorytm")
         self.algorithm_button.setFixedSize(200, 75)
-        self.algorithm_button.clicked.connect(self.generate_solution)
+        self.algorithm_button.clicked.connect(lambda: self.generate_solution)
 
         # wpisywanie bazy
         self.depot_layout = QVBoxLayout()
@@ -590,7 +597,6 @@ class ParamTab(QWidget):
         self.setLayout(self.layout)
 
     def update_travel(self, mode):
-
         """
         Metoda do zapisywania wybranych metod transportu.
         :param mode: wybrana metoda transportu
@@ -727,14 +733,26 @@ class ParamTab(QWidget):
             depot = create_depot(self.depot_location.text(), self.parent.T_begin, self.parent.T_end)
             self.parent.tasks.insert(0, depot)
 
-            dlg = DialogWindow("Generowanie!", "*_*")
-            dlg.exec()
+            self.parent.solution, self.parent.objectives = simmulated_annealing(self.parent.T_begin, self.parent.T_end,
+                                                                                self.parent.tasks, self.parent.temp_0,
+                                                                                self.parent.temp_end, self.parent.alpha,
+                                                                                self.parent.series_num,
+                                                                                self.parent.neighbourhood_prob,
+                                                                                self.parent.weights, self.parent.modes,
+                                                                                self.parent.transit_modes)
+
+
+class MplCanvas(FigureCanvasQTAgg):
+
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = fig.add_subplot(111)
+        super().__init__(fig)
 
 
 class ResultTab(QWidget):
 
     def __init__(self, parent: StartWindow):
-
         super(ResultTab, self).__init__()
 
         self.solution = None
@@ -744,19 +762,53 @@ class ResultTab(QWidget):
 
         self.solution_layout = QHBoxLayout()
 
-        self.text_layout = QVBoxLayout()    # layout na tekst
+        self.table_layout = QVBoxLayout()  # layout na tekst
+        self.table_main = QTableWidget()
+        self.table_main.setRowCount(1)
+        self.table_main.setColumnCount(3)
+        self.table_main.setItem(0, 0, QTableWidgetItem("Data i godzina rozpoczęcia"))
+        self.table_main.setItem(0, 1, QTableWidgetItem("Nazwa zadania"))
+        self.table_main.setItem(0, 2, QTableWidgetItem("Sposób podróży"))
+        self.table_layout.addWidget(self.table_main)
 
-        self.plot_layout = QVBoxLayout()    # layout na wykres
+        self.plot_layout = QVBoxLayout()  # layout na wykres
+        sc = MplCanvas(self, width=5, height=4, dpi=100)
+        sc.axes.plot([], [])
+        self.plot_layout.addWidget(sc)
 
         self.button_layout = QVBoxLayout()
         self.send_button = QPushButton("Wyślij do kalendarza")
         self.send_button.setFixedSize(200, 30)
         self.button_layout.addWidget(self.send_button)
-        self.button_layout.setContentsMargins(400, 400, 200, 100)
+        self.button_layout.setContentsMargins(400, 100, 400, 100)
 
-        self.solution_layout.addLayout(self.text_layout)
+        self.solution_layout.addLayout(self.table_layout)
         self.solution_layout.addLayout(self.plot_layout)
 
         self.main_layout.addLayout(self.solution_layout)
         self.main_layout.addLayout(self.button_layout)
         self.setLayout(self.main_layout)
+
+    def create_route_table(self, solution):
+        """
+        Rysowanie tabeli z rozwiązaniem.
+        :param solution: rozwiązanie
+        :return: NIC
+        """
+        # liczenie ile będzie wierszy
+        rows = 1
+        for i in range(len(solution)):
+            rows += len(solution[i].tasks) - 1
+
+        self.table_main.setRowCount(rows)
+
+        for i in range(len(solution)):
+            for j in range(1, len(solution[i].tasks)):
+                if solution[i].tasks[j].name == "Dom":
+                    self.table_main.setItem(j, 0, QTableWidgetItem(" "))
+                    self.table_main.setItem(j, 1, QTableWidgetItem("POWRÓT"))
+                    self.table_main.setItem(j, 2, QTableWidgetItem(solution[i].tasks[j].travel_method))
+                else:
+                    self.table_main.setItem(j, 0, QTableWidgetItem(str(solution[i].tasks[j].start_date_time)))
+                    self.table_main.setItem(j, 1, QTableWidgetItem(solution[i].tasks[j].name))
+                    self.table_main.setItem(j, 2, QTableWidgetItem(solution[i].tasks[j].travel_method))
