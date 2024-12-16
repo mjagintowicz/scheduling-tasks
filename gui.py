@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, \
     QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox, QLineEdit, QSpinBox, QDoubleSpinBox, QTableWidget,\
     QTableWidgetItem
-from PyQt6.QtCore import Qt, QDate, QTime, QTimer
+from PyQt6.QtCore import Qt, QDate, QTime, QTimer, pyqtSignal, QObject
 from PyQt6.QtGui import QFont
 from datetime import timedelta
 import matplotlib
@@ -84,18 +84,24 @@ class TaskTab(QWidget):
         # przycisk startowy
         self.start_button = QPushButton('Pobierz zadania\nz kalendarza', self)
         self.start_button.setFixedSize(200, 75)
-        self.start_button.setFont(QFont('Calibri', 15))
+        font = self.start_button.font()
+        font.setPointSize(15)
+        self.start_button.setFont(font)
         self.start_button.clicked.connect(self.get_data)  # po kliknięciu funkcja
 
         # przycisk otwierający okno podgląd
         self.tasks_button = QPushButton('Potwierdź listę zadań', self)
         self.tasks_button.setFixedSize(200, 75)
-        self.tasks_button.setFont(QFont('Calibri', 15))
+        font = self.tasks_button.font()
+        font.setPointSize(15)
+        self.tasks_button.setFont(font)
         self.tasks_button.clicked.connect(self.display_tasks)
 
         self.log_out_button = QPushButton('Wyloguj się', self)
         self.log_out_button.setFixedSize(200, 75)
-        self.log_out_button.setFont(QFont('Calibri', 15))
+        font = self.log_out_button.font()
+        font.setPointSize(15)
+        self.log_out_button.setFont(font)
         self.log_out_button.clicked.connect(self.clear_data)
 
         # layout do przycisków
@@ -432,18 +438,22 @@ class ParamTab(QWidget):
         self.temp_begin_layout = QHBoxLayout()
         self.temp_begin_label = QLabel("Temperatura początkowa:")
         self.temp_begin_label.setFixedSize(200, 30)
-        self.temp_begin_spin = QSpinBox()
+        self.temp_begin_spin = QDoubleSpinBox()
+        self.temp_begin_spin.setRange(0, 100000)
+        self.temp_begin_spin.setValue(100)
         self.temp_begin_spin.setFixedSize(80, 30)
-        self.temp_begin_spin.valueChanged.connect(lambda: self.set_temp_0)
+        self.temp_begin_spin.valueChanged.connect(lambda: self.set_temp_0())
         self.temp_begin_layout.addWidget(self.temp_begin_label)
         self.temp_begin_layout.addWidget(self.temp_begin_spin)
 
         self.temp_end_layout = QHBoxLayout()
         self.temp_end_label = QLabel("Temperatura końcowa:")
         self.temp_end_label.setFixedSize(200, 30)
-        self.temp_end_spin = QSpinBox()
+        self.temp_end_spin = QDoubleSpinBox()
+        self.temp_end_spin.setRange(0, 100000)
+        self.temp_end_spin.setValue(0.0001)
         self.temp_end_spin.setFixedSize(80, 30)
-        self.temp_end_spin.valueChanged.connect(lambda: self.set_temp_end)
+        self.temp_end_spin.valueChanged.connect(lambda: self.set_temp_end())
         self.temp_end_layout.addWidget(self.temp_end_label)
         self.temp_end_layout.addWidget(self.temp_end_spin)
 
@@ -452,8 +462,9 @@ class ParamTab(QWidget):
         self.alpha_label.setFixedSize(200, 30)
         self.alpha_spin = QDoubleSpinBox()
         self.alpha_spin.setRange(0, 1)
+        self.alpha_spin.setValue(0.1)
         self.alpha_spin.setFixedSize(80, 30)
-        self.alpha_spin.valueChanged.connect(lambda: self.set_alpha)
+        self.alpha_spin.valueChanged.connect(lambda: self.set_alpha())
         self.alpha_layout.addWidget(self.alpha_label)
         self.alpha_layout.addWidget(self.alpha_spin)
 
@@ -463,7 +474,7 @@ class ParamTab(QWidget):
         self.series_spin = QSpinBox()
         self.series_spin.setFixedSize(80, 30)
         self.series_spin.setRange(1, 100)
-        self.series_spin.valueChanged.connect(lambda: self.set_series_num)
+        self.series_spin.valueChanged.connect(lambda: self.set_series_num())
         self.series_layout.addWidget(self.series_label)
         self.series_layout.addWidget(self.series_spin)
 
@@ -486,7 +497,8 @@ class ParamTab(QWidget):
         self.operator1_spin = QSpinBox()
         self.operator1_spin.setFixedSize(80, 30)
         self.operator1_spin.setRange(0, 100)
-        self.operator1_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities)
+        self.operator1_spin.setValue(30)
+        self.operator1_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities())
         self.operator1_layout.addWidget(self.operator1_spin)
 
         self.operator2_layout = QHBoxLayout()
@@ -496,7 +508,8 @@ class ParamTab(QWidget):
         self.operator2_spin = QSpinBox()
         self.operator2_spin.setFixedSize(80, 30)
         self.operator2_spin.setRange(0, 100)
-        self.operator2_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities)
+        self.operator2_spin.setValue(30)
+        self.operator2_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities())
         self.operator2_layout.addWidget(self.operator2_spin)
 
         self.operator3_layout = QHBoxLayout()
@@ -506,7 +519,8 @@ class ParamTab(QWidget):
         self.operator3_spin = QSpinBox()
         self.operator3_spin.setFixedSize(80, 30)
         self.operator3_spin.setRange(0, 100)
-        self.operator3_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities)
+        self.operator3_spin.setValue(30)
+        self.operator3_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities())
         self.operator3_layout.addWidget(self.operator3_spin)
 
         self.operator4_layout = QHBoxLayout()
@@ -516,7 +530,8 @@ class ParamTab(QWidget):
         self.operator4_spin = QSpinBox()
         self.operator4_spin.setFixedSize(80, 30)
         self.operator4_spin.setRange(0, 100)
-        self.operator4_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities)
+        self.operator4_spin.setValue(10)
+        self.operator4_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities())
         self.operator4_layout.addWidget(self.operator4_spin)
 
         self.neighbourhood_layout.addWidget(self.neighbourhood_label)
@@ -528,8 +543,11 @@ class ParamTab(QWidget):
 
         # przycisk rozpoczęcia algorytmu
         self.algorithm_button = QPushButton("Algorytm")
+        font = self.algorithm_button.font()
+        font.setPointSize(15)
+        self.algorithm_button.setFont(font)
         self.algorithm_button.setFixedSize(200, 75)
-        self.algorithm_button.clicked.connect(lambda: self.generate_solution)
+        self.algorithm_button.clicked.connect(lambda: self.generate_solution())
 
         # wpisywanie bazy
         self.depot_layout = QVBoxLayout()
@@ -553,6 +571,8 @@ class ParamTab(QWidget):
         self.weight1_spin = QSpinBox()
         self.weight1_spin.setFixedSize(80, 30)
         self.weight1_spin.setRange(0, 100)
+        self.weight1_spin.setValue(50)
+        self.weight1_spin.valueChanged.connect(lambda: self.set_weights())
         self.weight1_layout.addWidget(self.weight1_label)
         self.weight1_layout.addWidget(self.weight1_spin)
 
@@ -562,6 +582,8 @@ class ParamTab(QWidget):
         self.weight2_spin = QSpinBox()
         self.weight2_spin.setFixedSize(80, 30)
         self.weight2_spin.setRange(0, 100)
+        self.weight2_spin.setValue(0)
+        self.weight2_spin.valueChanged.connect(lambda: self.set_weights())
         self.weight2_layout.addWidget(self.weight2_label)
         self.weight2_layout.addWidget(self.weight2_spin)
 
@@ -571,6 +593,8 @@ class ParamTab(QWidget):
         self.weight3_spin = QSpinBox()
         self.weight3_spin.setFixedSize(80, 30)
         self.weight3_spin.setRange(0, 100)
+        self.weight3_spin.setValue(50)
+        self.weight3_spin.valueChanged.connect(lambda: self.set_weights())
         self.weight3_layout.addWidget(self.weight3_label)
         self.weight3_layout.addWidget(self.weight3_spin)
 
@@ -755,8 +779,7 @@ class ResultTab(QWidget):
     def __init__(self, parent: StartWindow):
         super(ResultTab, self).__init__()
 
-        self.solution = None
-        self.objectives = []
+        self.parent = parent
 
         self.main_layout = QVBoxLayout()
 
@@ -766,21 +789,36 @@ class ResultTab(QWidget):
         self.table_main = QTableWidget()
         self.table_main.setRowCount(1)
         self.table_main.setColumnCount(3)
+        self.table_main.setColumnWidth(0, 170)
+        self.table_main.setColumnWidth(1, 150)
+        self.table_main.setColumnWidth(2, 120)
         self.table_main.setItem(0, 0, QTableWidgetItem("Data i godzina rozpoczęcia"))
         self.table_main.setItem(0, 1, QTableWidgetItem("Nazwa zadania"))
         self.table_main.setItem(0, 2, QTableWidgetItem("Sposób podróży"))
         self.table_layout.addWidget(self.table_main)
 
         self.plot_layout = QVBoxLayout()  # layout na wykres
-        sc = MplCanvas(self, width=5, height=4, dpi=100)
-        sc.axes.plot([], [])
-        self.plot_layout.addWidget(sc)
+        self.sc = MplCanvas(self, width=5, height=4, dpi=100)
+        self.sc.axes.plot([], [])
+        self.plot_layout.addWidget(self.sc)
 
-        self.button_layout = QVBoxLayout()
+        self.button_layout = QHBoxLayout()
+        self.button_layout.setContentsMargins(200, 100, 200, 100)
+        self.display_button = QPushButton("Pokaż rozwiązanie")
+        font = self.display_button.font()
+        font.setPointSize(15)
+        self.display_button.setFont(font)
+        self.display_button.setFixedSize(200, 75)
+        self.display_button.clicked.connect(lambda: self.show_solution())
+        self.button_layout.addWidget(self.display_button)
         self.send_button = QPushButton("Wyślij do kalendarza")
-        self.send_button.setFixedSize(200, 30)
+
+        self.send_button.setFixedSize(200, 75)
+        font = self.send_button.font()
+        font.setPointSize(15)
+        self.send_button.setFont(font)
+        self.send_button.clicked.connect(lambda: self.update_calendar())
         self.button_layout.addWidget(self.send_button)
-        self.button_layout.setContentsMargins(400, 100, 400, 100)
 
         self.solution_layout.addLayout(self.table_layout)
         self.solution_layout.addLayout(self.plot_layout)
@@ -789,26 +827,75 @@ class ResultTab(QWidget):
         self.main_layout.addLayout(self.button_layout)
         self.setLayout(self.main_layout)
 
-    def create_route_table(self, solution):
+    def create_route_table(self):
         """
         Rysowanie tabeli z rozwiązaniem.
-        :param solution: rozwiązanie
         :return: NIC
         """
         # liczenie ile będzie wierszy
+        self.table_layout.removeWidget(self.table_main)
+        self.table_main = QTableWidget()
         rows = 1
-        for i in range(len(solution)):
-            rows += len(solution[i].tasks) - 1
+        for i in range(len(self.parent.solution)):
+            rows += len(self.parent.solution[i].tasks) - 1
 
         self.table_main.setRowCount(rows)
+        self.table_main.setColumnCount(3)
+        self.table_main.setColumnWidth(0, 170)
+        self.table_main.setColumnWidth(1, 150)
+        self.table_main.setColumnWidth(2, 120)
+        self.table_main.setItem(0, 0, QTableWidgetItem("Data i godzina rozpoczęcia"))
+        self.table_main.setItem(0, 1, QTableWidgetItem("Nazwa zadania"))
+        self.table_main.setItem(0, 2, QTableWidgetItem("Sposób podróży"))
 
-        for i in range(len(solution)):
-            for j in range(1, len(solution[i].tasks)):
-                if solution[i].tasks[j].name == "Dom":
+        for i in range(len(self.parent.solution)):
+            for j in range(1, len(self.parent.solution[i].tasks)):
+                if self.parent.solution[i].tasks[j].name == "Dom":
                     self.table_main.setItem(j, 0, QTableWidgetItem(" "))
                     self.table_main.setItem(j, 1, QTableWidgetItem("POWRÓT"))
-                    self.table_main.setItem(j, 2, QTableWidgetItem(solution[i].tasks[j].travel_method))
+                    self.table_main.setItem(j, 2, QTableWidgetItem(self.parent.solution[i].tasks[j].travel_method))
                 else:
-                    self.table_main.setItem(j, 0, QTableWidgetItem(str(solution[i].tasks[j].start_date_time)))
-                    self.table_main.setItem(j, 1, QTableWidgetItem(solution[i].tasks[j].name))
-                    self.table_main.setItem(j, 2, QTableWidgetItem(solution[i].tasks[j].travel_method))
+                    self.table_main.setItem(j, 0, QTableWidgetItem(str(self.parent.solution[i].tasks[j].start_date_time)))
+                    self.table_main.setItem(j, 1, QTableWidgetItem(self.parent.solution[i].tasks[j].name))
+                    self.table_main.setItem(j, 2, QTableWidgetItem(self.parent.solution[i].tasks[j].travel_method))
+
+        self.table_layout.addWidget(self.table_main)
+
+    def create_plot(self):
+        """
+        Rysowanie wykresu funkcji celu przetwarzanych rozwiązać w kolejnych iteracjach.
+        :return: NIC
+        """
+        self.plot_layout.removeWidget(self.sc)
+        self.sc = MplCanvas(self, width=5, height=4, dpi=100)
+        iter_list = [i for i in range(1, len(self.parent.objectives)+1)]
+        self.sc.axes.plot(iter_list, self.parent.objectives)
+        self.sc.axes.set_xlabel("Iteracja")
+        self.sc.axes.set_ylabel("Wartość funkcji celu przetwarzanego rozwiązania")
+        self.sc.axes.set_title("Wykres funkcji celu w kolejnych iteracjach")
+        self.plot_layout.addWidget(self.sc)
+
+    def show_solution(self):
+        """
+        Wyświetlenie rozwiązania.
+        :return: NIC
+        """
+        if not self.parent.solution:
+            dlg = DialogWindow("Błąd!", "Brak rozwiązania.")
+            dlg.exec()
+        else:
+            self.create_route_table()
+            self.create_plot()
+
+    def update_calendar(self):
+        """
+        Aktualizacja kalendarza Google.
+        :return: NIC
+        """
+        if not self.parent.solution:
+            dlg = DialogWindow("Błąd!", "Brak rozwiązania.")
+            dlg.exec()
+        else:
+            add_all_tasks(self.parent.solution)
+            dlg = DialogWindow("Sukces!", "Zadania zostały dodane!")
+            dlg.exec()
