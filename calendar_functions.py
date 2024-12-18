@@ -18,7 +18,7 @@ from PyQt6.QtCore import QDate, QTime
 
 from beautiful_date import *
 
-from model_params import Task
+from model_params import Task, Route
 
 
 SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
@@ -171,5 +171,17 @@ def log_out():
     os.remove("token.pickle")
 
 
+def add_all_tasks(solution: List[Route], calendar_id: str = 'primary'):
+    """
+    Dodawanie uporządkowanych zadań do kalendarza.
+    :param solution: rozwiązanie
+    :param calendar_id: kalendarz
+    :return: NIC
+    """
+    gc = access_calendar(calendar_id)
+
+    for route in solution:
+        for i in range(1, len(route.tasks)-1):
+            add_task_to_calendar(route.tasks[i], calendar_id)
 
 

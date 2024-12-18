@@ -115,7 +115,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, cost_matrixes, tasks, cur
 
                 # sprawdzanie czy jest inny dzień, w którym zadanie jest dostępne
                 else:
-                    current_time_tmp = current_time + 1 * day
+                    current_time_tmp = current_time + 1 * day   # nw czy to zmieniać na days czy nie
                     current_time_tmp = (D @ current_time_tmp.day/current_time_tmp.month/current_time_tmp.year)[00:00]
                     window_right_tmp = (D @ window_right.day/window_right.month/window_right.year)[00:00]
                     found = False
@@ -159,7 +159,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, cost_matrixes, tasks, cur
     # jeśli był to należy wybrać ten najkrótszy i go zwrócić
     best_return = min(possible_returns)
     matrix_inx = return_times.index(best_return)
-    best_cost = return_cost[matrix_inx]
+    best_cost = return_costs[matrix_inx]
     return best_return, matrix_inx, best_cost
 
 
@@ -175,18 +175,21 @@ def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_ti
     :return: indeks najbliższego zadania i wartość kosztu albo None, gdy takiego nie ma
     """
 
-    results = []  # ostateczne wyniki kryterium
+    results = [inf]  # ostateczne wyniki kryterium - baza zawsze jako inf
     task_distances = matrix[task_inx]  # odległości od obecnego zadania do pozostałych
     if all(distance == inf for distance in task_distances[1:]):  # jeśli wszystko inf -- wszystko jest już odwiedzone (bez bazy)
         return inf, inf
 
-    for inx in range(len(tasks)):
+    for inx in range(1, len(tasks)):    # od 1, bo depot nie jest sprawdzany
         if task_distances[inx] == inf or not tasks[inx].is_available_today(current_time):  # jeśli zadanie wykonane lub niemożliwe do realizacji dzisiaj
             results.append(inf)
         else:
             distance = task_distances[inx]  # odległość
             arrival_time = current_time + distance * minutes
             waiting_time = tasks[inx].get_waiting_time(arrival_time)  # czas oczekiwania na najwcześniejszy start
+            if waiting_time is None:
+                results.append(inf)
+                continue
             current_time_plus = current_time + distance * minutes + tasks[inx].duration * minutes
             urgency = tasks[inx].window_right - current_time_plus  # pilność zadania
             urgency = urgency.total_seconds() / 60
@@ -374,9 +377,11 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                                                                      others_enabled)
             # stare dobre ahh czyszczenie - rachunek od googla is coming
             for m in range(len(matrixes)):
-                for inx in finished:
-                    matrixes[m][current_task_inx][inx] = inf
-                    cost_matrixes[m][current_task_inx][inx] = inf
+                for row in range(len(matrixes[0])):
+                    for inx in finished:
+                        if inx != 0:
+                            matrixes[m][row][inx] = inf
+                            cost_matrixes[m][row][inx] = inf
 
             # wybór indeksu najbliższego zadania
             next_task_inx, matrix_inx = get_available_nearest(current_task_inx, matrixes, tasks, current_time, finished)

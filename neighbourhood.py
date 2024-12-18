@@ -369,47 +369,6 @@ def verify_shift(route: Route, prev_route: Route):
         return False
 
 
-def inter_route_shift(route1: Route, route2: Route, travel_modes: List[str], transit_modes: List[str] = [],
-                      weights=None):
-    """
-    NIETESTOWANE! Funkcja przenosząca zadanie z kursu 1. do kursu 2.
-    :param route1: kurs 1.
-    :param route2: kurs 2.
-    :param travel_modes: metody transportu
-    :param transit_modes: szczegóły komunikacji miejskiej
-    :param weights: wagi f. celu
-    :return: zmodyfikowane kursy lub None, jeśli się nie udało
-    """
-
-    if weights is None:
-        weights = [0.6, 0, 0.4]
-
-    route1_tmp = deepcopy(route1)
-    route2_tmp = deepcopy(route2)
-
-    # usunięcie zadania z kursu 1.
-    random_task = choice(route1_tmp.tasks[1:-1])
-    random_task_inx = route1_tmp.tasks.index(random_task)
-    route1_tmp.tasks.remove(random_task)
-    route1_tmp = fix_route(route1, random_task_inx, travel_modes, transit_modes)
-    if route1_tmp is None:
-        return None, None
-
-    # znalezienie valid wstawień w kursie 2.
-    feasible_insertions, objectives = find_valid_insertion(route2_tmp, random_task, travel_modes, transit_modes,
-                                                           weights=weights)
-    if feasible_insertions:
-        best = min(objectives)
-        best_inx = objectives.index(best)
-        best_inx = feasible_insertions[best_inx]
-        route2_tmp = single_insertion(route2_tmp, random_task, best_inx, travel_modes, transit_modes)
-        route1_tmp.set_objective(weights)
-        route2_tmp.set_objective(weights)
-        return route1_tmp, route2_tmp
-    else:
-        return None, None
-
-
 def count_tasks_daily(solution: List[Route], picked_day: BeautifulDate):
     """
     Funkcja zliczająca wykonane zadania w ciągu 1 dnia.
@@ -487,7 +446,7 @@ def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, t
     :return: nowy kurs
     """
 
-    if not task.is_available_today(current_time):
+    if not task.is_available_today(current_time):       
         return None
 
     # minimalizacja czekania (nie powinno go już być potem tj. arrival=start)
@@ -533,10 +492,55 @@ def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, t
     return full_short_route
 
 
+def inter_route_shift(route1: Route, route2: Route, travel_modes: List[str], transit_modes: List[str] = [],
+                      weights=None):
+    """
+    Funkcja przenosząca zadanie z kursu 1. do kursu 2.
+    :param route1: kurs 1. z którego jest usuwane
+    :param route2: kurs 2. do którego jest dodawane
+    :param travel_modes: metody transportu
+    :param transit_modes: szczegóły komunikacji miejskiej
+    :param weights: wagi f. celu
+    :return: zmodyfikowane kursy lub None, jeśli się nie udało
+    """
+
+    if weights is None:
+        weights = [0.6, 0, 0.4]
+
+    route1_tmp = deepcopy(route1)
+    route2_tmp = deepcopy(route2)
+
+    # usunięcie zadania z kursu 1.
+    random_task = choice(route1_tmp.tasks[1:-1])
+    random_task_inx = route1_tmp.tasks.index(random_task)
+    route1_tmp.tasks.remove(random_task)
+    if len(route1_tmp.tasks) != 2:
+        route1_tmp = fix_route(route1, random_task_inx, travel_modes, transit_modes)
+        if route1_tmp is None:
+            return None, None
+
+    # znalezienie valid wstawień w kursie 2.
+    feasible_insertions, objectives = find_valid_insertion(route2_tmp, random_task, travel_modes, transit_modes,
+                                                           weights=weights)
+    if feasible_insertions:
+        best = min(objectives)
+        best_inx = objectives.index(best)
+        best_inx = feasible_insertions[best_inx]
+        route2_tmp = single_insertion(route2_tmp, random_task, best_inx, travel_modes, transit_modes)
+        if len(route1_tmp.tasks) != 2:
+            route1_tmp.set_objective(weights)
+        else:
+            route1_tmp = None
+        route2_tmp.set_objective(weights)
+        return route1_tmp, route2_tmp
+    else:
+        return None, None
+
+
 def shift_from_the_most_busy_day(solution: List[Route], T_begin: BeautifulDate, T_end: BeautifulDate,
                                  travel_modes: List[str], transit_modes: List[str] = [], weights=None):
     """
-    NIETESTOWANE! Operator sąsiedztwa - przenosi ostatnie zadanie z najbardziej zajętego dnia na inny.
+    Operator sąsiedztwa - przenosi ostatnie zadanie z najbardziej zajętego dnia na inny.
     :param solution: rozwiązanie
     :param T_begin: początek harmonogramu
     :param T_end: koniec harmonogramu
@@ -562,10 +566,11 @@ def shift_from_the_most_busy_day(solution: List[Route], T_begin: BeautifulDate, 
         if task_count_tmp > task_count and task_count_tmp != 0:
             task_count = task_count_tmp
             most_busy_day = current_date
-        current_date = current_date + 1*day
+        current_date = current_date + 1*days
 
     # wybór ostaniego zadania z ostatniego kursu
-    route_tmp, lonely_task, route_inx = pick_the_last_task_daily(solution, most_busy_day, travel_modes, transit_modes)
+    solution_tmp = deepcopy(solution)
+    route_tmp, lonely_task, route_inx = pick_the_last_task_daily(solution_tmp, most_busy_day, travel_modes, transit_modes)
     if route_tmp is not None:
         route_tmp.set_objective(weights)
 
@@ -597,22 +602,22 @@ def shift_from_the_most_busy_day(solution: List[Route], T_begin: BeautifulDate, 
                 new_route = single_insertion(route, lonely_task, best_inx, travel_modes, transit_modes)
                 if new_route is not None:
                     new_route.set_objective(weights)
-                    inx = solution.index(route)
-                    solution[inx] = new_route  # wstawienie aktualizacji w nowym dniu
+                    inx = solution_tmp.index(route)
+                    solution_tmp[inx] = new_route  # wstawienie aktualizacji w nowym dniu
                     insertion = True
+                    break
                 else:
                     return solution  # jak się nie udało, to zakończ
-            break
+            else:
+                return solution
 
         # w przypadku, gdy okazało się, że w wybranym dniu nic nie ma
-        elif new_day < route.start_date_only:
-            depot = deepcopy(route.tasks[0])
-            short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
-            short_route.set_objective(weights)
-            break
+    if not insertion:
+        depot = deepcopy(solution_tmp[0].tasks[0])
+        short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
+        short_route.set_objective(weights)
 
     if insertion:  # jeśli wstawienie się powiodło - podmiana kursu na skrócony
-        solution_tmp = deepcopy(solution)
         if route_tmp is None:
             del solution_tmp[route_inx]
         else:
@@ -620,7 +625,6 @@ def shift_from_the_most_busy_day(solution: List[Route], T_begin: BeautifulDate, 
         solution.sort(key=lambda x: x.start_date_og)
         return solution_tmp
     elif short_route is not None:  # jeśli został stworzony nowy kurs - podmiana i dodanie nowego kursu do rozwiązania
-        solution_tmp = deepcopy(solution)
         if route_tmp is None:
             del solution_tmp[route_inx]
         else:
@@ -635,7 +639,7 @@ def shift_from_the_most_busy_day(solution: List[Route], T_begin: BeautifulDate, 
 def shift_from_the_least_busy_day(solution: List[Route], T_begin: BeautifulDate, T_end: BeautifulDate,
                                   travel_modes: List[str], transit_modes: List[str] = [], weights=None):
     """
-    NIETESTOWANE! Operator sąsiedztwa - przenosi ostatnie zadanie z najbardziej zajętego dnia na inny.
+    Operator sąsiedztwa - przenosi ostatnie zadanie z najbardziej zajętego dnia na inny.
     :param solution: rozwiązanie
     :param T_begin: początek harmonogramu
     :param T_end: koniec harmonogramu
@@ -656,15 +660,22 @@ def shift_from_the_least_busy_day(solution: List[Route], T_begin: BeautifulDate,
         weights = [0.6, 0, 0.4]
 
     # pętla znajdująca najmniej zajęty dzień
+    task_count_daily = []
     while current_date < end_date:
         task_count_tmp = count_tasks_daily(solution, current_date)
-        if task_count_tmp < task_count:
+        if task_count_tmp < task_count and task_count_tmp != 0:
             task_count = task_count_tmp
             least_busy_day = current_date
-        current_date = current_date + 1*day
-
+        current_date = current_date + 1*days
+        task_count_daily.append(task_count_tmp)
+    # jeśli jest tylko 1 zajęty dzień - operator nie działa, bo to bez sensu, bo on ma zwiekszac liczbe dni
+    busy_days = sum(1 for x in task_count_daily if x != 0)
+    if busy_days == 1:
+        return solution
     # wybór ostatniego zadania
-    route_tmp, lonely_task, route_inx = pick_the_last_task_daily(solution, least_busy_day, travel_modes, transit_modes)
+    solution_tmp = deepcopy(solution)
+    route_tmp, lonely_task, route_inx = pick_the_last_task_daily(solution_tmp, least_busy_day, travel_modes,
+                                                                 transit_modes)
     if route_tmp is not None:
         route_tmp.set_objective(weights)
 
@@ -695,22 +706,22 @@ def shift_from_the_least_busy_day(solution: List[Route], T_begin: BeautifulDate,
                 new_route = single_insertion(route, lonely_task, best_inx, travel_modes, transit_modes)
                 if new_route is not None:
                     new_route.set_objective(weights)
-                    inx = solution.index(route)
-                    solution[inx] = new_route
+                    inx = solution_tmp.index(route)
+                    solution_tmp[inx] = new_route
                     insertion = True
+                    break
                 else:
                     return solution  # jak się nie udało, to zakończ
-            break
+            else:
+                return solution
 
-            # w przypadku, gdy okazało się, że w wybranym dniu nic nie ma
-        elif new_day < route.start_date_only:
-            depot = deepcopy(route.tasks[0])
-            short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
-            short_route.set_objective(weights)
-            break
+    # w przypadku, gdy okazało się, że w wybranym dniu nic nie ma
+    if not insertion:
+        depot = deepcopy(solution_tmp[0].tasks[0])
+        short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
+        short_route.set_objective(weights)
 
     if insertion:  # jeśli wstawienie się powiodło - podmiana kursu na skrócony
-        solution_tmp = deepcopy(solution)
         if route_tmp is None:  # jeśli w tym dniu została tylko baza-baza, to usuwany jest ten kurs
             del solution_tmp[route_inx]
         else:
@@ -718,7 +729,6 @@ def shift_from_the_least_busy_day(solution: List[Route], T_begin: BeautifulDate,
         solution.sort(key=lambda x: x.start_date_og)
         return solution_tmp
     elif short_route is not None:  # jeśli został stworzony nowy kurs - podmiana i dodanie nowego kursu do rozwiązania
-        solution_tmp = deepcopy(solution)
         if route_tmp is None:
             del solution_tmp[route_inx]
         else:

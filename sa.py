@@ -78,56 +78,70 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                     temp *= alpha
                     continue
                 new_route.depot_fix()
+                new_solution = deepcopy(current_solution)
+                new_solution.remove(random_route)
+                new_solution.append(new_route)
+                new_solution.sort(key=lambda x: x.start_date_og)
                 # weryfikacja
-                route_inx = current_solution.index(random_route)
-                feasible1 = verify_shift(new_route, current_solution[route_inx-1])
-                feasible2 = verify_shift(current_solution[route_inx+1], new_route)
-                if feasible1 and feasible2:
-                    new_solution = deepcopy(current_solution)
-                    new_solution.remove(random_route)
-                    new_solution.append(new_route)
-                    new_solution.sort(key=lambda x: x.start_date_og)
-                else:
+                feasible = True
+                for j in range(1, len(new_solution)):
+                    if not verify_shift(new_solution[j], new_solution[j - 1]):
+                        feasible = False
+                        break
+                if not feasible:
+                    temp *= alpha
                     current_objective = get_objective(current_solution, weights)
                     all_objectives.append(current_objective)
-                    temp *= alpha
                     continue
 
             elif operator_choice == 2:
                 # wybór 2 kursów
                 random_route1 = choice(current_solution)
-                while len(random_route1.tasks) <= 3:
-                    random_route1 = choice(current_solution)
                 random_route2 = choice(current_solution)
-                while len(random_route2.tasks) <= 3 or random_route2 == random_route1:
+                while random_route2 == random_route1:
                     random_route2 = choice(current_solution)
                 new_route1, new_route2 = inter_route_shift(random_route1, random_route2, travel_modes, transit_modes)
-                if new_route1 is None or new_route2 is None:
+                if new_route1 is None and new_route2 is None:
                     temp *= alpha
                     current_objective = get_objective(current_solution, weights)
                     all_objectives.append(current_objective)
                     continue
-                new_route1.depot_fix()
-                new_route2.depot_fix()
-
-                route1_inx = current_solution.index(random_route1)
-                feasible1 = verify_shift(new_route1, current_solution[route1_inx-1])
-                feasible1_ = verify_shift(current_solution[route1_inx+1], new_route1)
-                route2_inx = current_solution.index(random_route2)
-                feasible2 = verify_shift(new_route2, current_solution[route2_inx-1])
-                feasible2_ = verify_shift(current_solution[route2_inx+1], new_route2)
-                if feasible1 and feasible1_ and feasible2 and feasible2_:
+                elif new_route1 is None and new_route2 is not None:
+                    new_route2.depot_fix()
+                    new_solution = deepcopy(current_solution)
+                    new_solution.remove(random_route1)  # jeśli jedyne zadanie z kursu 1. zostało przeniesione, to usunięcie całego kursu
+                    new_solution.remove(random_route2)
+                    new_solution.append(new_route2)
+                    new_solution.sort(key=lambda x: x.start_date_og)
+                    feasible = True
+                    for j in range(1, len(new_solution)):
+                        if not verify_shift(new_solution[j], new_solution[j - 1]):
+                            feasible = False
+                            break
+                    if not feasible:
+                        temp *= alpha
+                        current_objective = get_objective(current_solution, weights)
+                        all_objectives.append(current_objective)
+                        continue
+                elif new_route1 is not None and new_route2 is not None:
+                    new_route1.depot_fix()
+                    new_route2.depot_fix()
                     new_solution = deepcopy(current_solution)
                     new_solution.remove(random_route1)
                     new_solution.remove(random_route2)
                     new_solution.append(new_route1)
                     new_solution.append(new_route2)
                     new_solution.sort(key=lambda x: x.start_date_og)
-                else:
-                    temp *= alpha
-                    current_objective = get_objective(current_solution, weights)
-                    all_objectives.append(current_objective)
-                    continue
+                    feasible = True
+                    for j in range(1, len(new_solution)):
+                        if not verify_shift(new_solution[j], new_solution[j - 1]):
+                            feasible = False
+                            break
+                    if not feasible:
+                        temp *= alpha
+                        current_objective = get_objective(current_solution, weights)
+                        all_objectives.append(current_objective)
+                        continue
 
             elif operator_choice == 3:
                 new_solution = shift_from_the_most_busy_day(current_solution, T_begin, T_end, travel_modes,
@@ -139,8 +153,8 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                     continue
                 # weryfikacja, jeśli w którymś miejscu się okaże, że jest źle, to znaczy, że nie ma co
                 feasible = True
-                for j in range(1, len(current_solution)):
-                    if not verify_shift(current_solution[j], current_solution[j-1]):
+                for j in range(1, len(new_solution)):
+                    if not verify_shift(new_solution[j], new_solution[j-1]):
                         feasible = False
                         break
                 if not feasible:
@@ -158,8 +172,8 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
                     all_objectives.append(current_objective)
                     continue
                 feasible = True
-                for j in range(1, len(current_solution)):
-                    if not verify_shift(current_solution[j], current_solution[j - 1]):
+                for j in range(1, len(new_solution)):
+                    if not verify_shift(new_solution[j], new_solution[j - 1]):
                         feasible = False
                         break
                 if not feasible:
@@ -204,4 +218,4 @@ def simmulated_annealing(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: Li
     return best_solution, all_objectives
 
 
-# i co robić z niedopuszczalnymi
+# i co robić z niedopuszczalnymi -- niedopuszczone
