@@ -446,7 +446,7 @@ def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, t
     :return: nowy kurs
     """
 
-    if not task.is_available_today(current_time):       
+    if not task.is_available_today(current_time):
         return None
 
     # minimalizacja czekania (nie powinno go już być potem tj. arrival=start)

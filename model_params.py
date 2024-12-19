@@ -5,6 +5,7 @@ from typing import List
 
 inf = float('inf')
 
+
 # KLASA OPISUJĄCA ZADANIE
 class Task:
 
@@ -186,10 +187,10 @@ class Task:
         opening_time = timedelta(hours=opening_time.hour, minutes=opening_time.minute)
         window_left_time = timedelta(hours=self.window_left.hour, minutes=self.window_left.minute)
 
-        if opening_time > window_left_time > current_time or opening_time > current_time > window_left_time:     # jeśli trzeba oczekiwać na otwarcie miejsca
+        if opening_time >= window_left_time >= current_time or opening_time >= current_time >= window_left_time:     # jeśli trzeba oczekiwać na otwarcie miejsca
             waiting_time = opening_time - current_time
             return waiting_time.total_seconds() / 60
-        elif window_left_time > opening_time > current_time or window_left_time > current_time > opening_time:        # jeśli trzeba oczekiwać na otwarcie okna
+        elif window_left_time >= opening_time >= current_time or window_left_time >= current_time >= opening_time:        # jeśli trzeba oczekiwać na otwarcie okna
             waiting_time = window_left_time - current_time
             return waiting_time.total_seconds() / 60
         else:
@@ -246,6 +247,15 @@ class Route:
     def depot_fix(self):
         self.tasks[0].end_date_time = self.tasks[1].start_date_time - self.tasks[1].travel_time * minutes
         self.start_date_og = self.tasks[0].end_date_time
+
+    def __repr__(self):
+        s = ""
+        for i in range(1, len(self.tasks)):
+            if i == len(self.tasks) - 1:
+                s += f"{i}. planowana godzina powrotu: {self.tasks[i].end_date_time}; transport: {self.tasks[i].travel_method}\n"
+            else:
+                s += f"{i}. {self.tasks[i].name} o godzinie {self.tasks[i].end_date_time}; transport: {self.tasks[i].travel_method}\n"
+        return s
 
 
 def set_idle_time(route: Route, prev_route: Route | None):

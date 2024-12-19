@@ -10,7 +10,7 @@ from beautiful_date import *
 
 inf = float('inf')
 
-with open('key.txt', 'r') as file:  # odczytanie klucza z pliku txt
+with open('test_key.txt', 'r') as file:  # odczytanie klucza z pliku txt
     my_key = file.read().rstrip()
 
 gmaps = googlemaps.Client(key=my_key)  # nowy klient
@@ -31,7 +31,6 @@ def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
     result = gmaps.place(place_id)['result']
     if 'current_opening_hours' in result:
         weekday_text = gmaps.place(place_id)['result']['current_opening_hours']['weekday_text']
-
         # wybór odpowiednich danych z str
         opening_hours = []
         closing_hours = []
@@ -75,8 +74,14 @@ def get_location_working_hours(name) -> Tuple[List[str], List[str]]:
                 closing_hours.append(closing_hour)
 
             else:  # jeśli brak dopasowań przyjęte założenie, że miejsce jest zamknięte
-                opening_hours.append('-')
-                closing_hours.append('-')
+                pattern_24h = r'Open 24 hours'
+                matches_24h = findall(pattern_24h, data)
+                if matches_24h:
+                    opening_hours.append("00:00")
+                    closing_hours.append("23:59")
+                else:
+                    opening_hours.append('-')
+                    closing_hours.append('-')
 
     else:
         opening_hours = 7 * ["00:00"]
@@ -129,6 +134,40 @@ def iterate_through_matrix(rows: List):
             if row_cnt == col_cnt:  # jeśli jest to element na przekątnej (dystans z A do A)
                 distance_time = inf  # uzupełnienie inf
             else:
+                if 'duration' not in item:
+                    distance_time = inf
+                else:
+                    distance_time_str = item['duration']['text']
+                    distance_time = time_pattern_match(distance_time_str)  # konwersja str do liczby minut
+
+            matrix[row_cnt][col_cnt] = distance_time  # aktualizacja macierzy
+
+            col_cnt += 1
+
+        row_cnt += 1
+
+    return matrix
+
+
+def iterate_through_matrix_irregular(rows: List, r, c):
+    """
+    Funkcja pomocnicza do iterowania po rzędach macierzy odległości zwróconej przez klienta Pythona.
+    :param c: liczba kolumn
+    :param r: liczba wierszy
+    :param rows: rzędzy macierzy odległości
+    :return: macierz odległości z wartościami czasów (w minutach)
+    """
+
+    matrix = [[inf] * c for _ in range(r)]  # inicjalizacja wyjściowej macierzy
+
+    row_cnt = 0
+    for element in rows:
+        col_cnt = 0
+        for item in element['elements']:
+
+            if 'duration' not in item:
+                distance_time = inf
+            else:
                 distance_time_str = item['duration']['text']
                 distance_time = time_pattern_match(distance_time_str)  # konwersja str do liczby minut
 
@@ -173,6 +212,36 @@ def get_fare(rows: List):
     return matrix
 
 
+def get_fare_irregular(rows: List, r, c):
+    """
+    Uzyskanie informacji na temat kosztów biletów.
+    :param c:
+    :param r:
+    :param rows: rzędy macierzy odległości
+    :return: macierz kosztów
+    """
+
+    matrix = [[inf] * c for _ in range(r)]
+
+    row_cnt = 0
+    for element in rows:
+        col_cnt = 0
+        for item in element['elements']:
+
+            if 'fare' in item:  # jeśli jest informacja o koszcie
+                fare = item['fare']['value']
+            else:
+                fare = inf
+
+            matrix[row_cnt][col_cnt] = fare  # aktualizacja macierzy
+
+            col_cnt += 1
+
+        row_cnt += 1
+
+    return matrix
+
+
 def get_distance_cost_matrixes(locations_og: List[str], modes: List[str], transit_modes: List[str] = None,
                                departure_time: BeautifulDate = D.now(), car_enabled: bool = True,
                                bike_enabled: bool = True, others_enabled: bool = True):
@@ -192,29 +261,94 @@ def get_distance_cost_matrixes(locations_og: List[str], modes: List[str], transi
     size = len(locations)
     distance_matrixes = []
     cost_matrixes = []
+    locations1 = []
+    split = False
+    if len(locations) > 10:     # założenie, że zadań jest zawsze <= 20
+        split = True
+        locations1 = deepcopy(locations[0:10])
+        locations2 = deepcopy(locations[10:])
 
     for mode in modes:  # dla każdej wybranej metody
 
         # pobranie danych
         if mode == 'transit' and others_enabled:    # żeby skorzystać z transit musi być opcja others_enabled
             for transit_mode in transit_modes:
-                rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
-                                             transit_mode=transit_mode, departure_time=departure_time)['rows']
+                if not split:
+                    rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
+                                                 transit_mode=transit_mode, departure_time=departure_time)['rows']
 
-                distance_matrix_tmp = iterate_through_matrix(rows)  # utworzenie macierzy dla wybranej metody
+                    distance_matrix_tmp = iterate_through_matrix(rows)  # utworzenie macierzy dla wybranej metody
+                    cost_matrix_tmp = get_fare(rows)
+
+                else:   # jeśli trzeba rozdzielać to rozdzielam
+                    rows_11 = gmaps.distance_matrix(origins=locations1, destinations=locations1, mode=mode,
+                                                    transit_mode=transit_mode, departure_time=departure_time)['rows']
+                    distance_matrix_tmp11 = iterate_through_matrix(rows_11)
+                    cost_matrix_tmp11 = get_fare(rows_11)
+                    rows_22 = gmaps.distance_matrix(origins=locations2, destinations=locations2, mode=mode,
+                                                    transit_mode=transit_mode, departure_time=departure_time)['rows']
+                    distance_matrix_tmp22 = iterate_through_matrix(rows_22)
+                    cost_matrix_tmp22 = get_fare(rows_22)
+                    rows_12 = gmaps.distance_matrix(origins=locations1, destinations=locations2, mode=mode,
+                                                    transit_mode=transit_mode, departure_time=departure_time)['rows']
+                    distance_matrix_tmp12 = iterate_through_matrix_irregular(rows_12, len(locations1), len(locations2))
+                    cost_matrix_tmp12 = get_fare_irregular(rows_12, len(locations1), len(locations2))
+                    rows_21 = gmaps.distance_matrix(origins=locations2, destinations=locations1, mode=mode,
+                                                    transit_mode=transit_mode, departure_time=departure_time)['rows']
+                    distance_matrix_tmp21 = iterate_through_matrix_irregular(rows_21, len(locations2), len(locations1))
+                    cost_matrix_tmp21 = get_fare_irregular(rows_21, len(locations2), len(locations1))
+
+                    distance_matrix_tmp = []
+                    for r in range(len(distance_matrix_tmp11)):
+                        list_tmp = distance_matrix_tmp11[r] + distance_matrix_tmp12[r]
+                        distance_matrix_tmp.append(deepcopy(list_tmp))
+                    for r in range(len(distance_matrix_tmp22)):
+                        list_tmp = distance_matrix_tmp21[r] + distance_matrix_tmp22[r]
+                        distance_matrix_tmp.append(deepcopy(list_tmp))
+
+                    cost_matrix_tmp = []
+                    for r in range(len(cost_matrix_tmp11)):
+                        list_tmp = cost_matrix_tmp11[r] + cost_matrix_tmp12[r]
+                        cost_matrix_tmp.append(deepcopy(list_tmp))
+                    for r in range(len(cost_matrix_tmp22)):
+                        list_tmp = cost_matrix_tmp21[r] + cost_matrix_tmp22[r]
+                        cost_matrix_tmp.append(deepcopy(list_tmp))
+
+                # ostateczne przypisanie macierzy
                 distance_matrixes.append(deepcopy(distance_matrix_tmp))
-
-                cost_matrix_tmp = get_fare(rows)
                 cost_matrixes.append(deepcopy(cost_matrix_tmp))
 
         elif (mode == 'driving' and car_enabled) or (mode == 'bicycling' and bike_enabled) or (mode == 'walking' and
                                                                                                others_enabled):
-            rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
-                                         departure_time=departure_time)['rows']
-            distance_matrix_tmp = iterate_through_matrix(rows)
-            distance_matrixes.append(deepcopy(distance_matrix_tmp))
+            if not split:
+                rows = gmaps.distance_matrix(origins=locations, destinations=locations, mode=mode,
+                                             departure_time=departure_time)['rows']
+                distance_matrix_tmp = iterate_through_matrix(rows)
+            else:
+                rows_11 = gmaps.distance_matrix(origins=locations1, destinations=locations1, mode=mode,
+                                               departure_time=departure_time)['rows']
+                distance_matrix_tmp11 = iterate_through_matrix(rows_11)
+                rows_22 = gmaps.distance_matrix(origins=locations2, destinations=locations2, mode=mode,
+                                               departure_time=departure_time)['rows']
+                distance_matrix_tmp22 = iterate_through_matrix(rows_22)
 
-            # analogiczny edit macierzy kosztów
+                rows_12 = gmaps.distance_matrix(origins=locations1, destinations=locations2, mode=mode,
+                                                departure_time=departure_time)['rows']
+                distance_matrix_tmp12 = iterate_through_matrix_irregular(rows_12, len(locations1), len(locations2))
+                rows_21 = gmaps.distance_matrix(origins=locations2, destinations=locations1, mode=mode,
+                                                departure_time=departure_time)['rows']
+                distance_matrix_tmp21 = iterate_through_matrix_irregular(rows_21, len(locations2), len(locations1))
+
+                distance_matrix_tmp = []
+                for r in range(len(distance_matrix_tmp11)):
+                    list_tmp = distance_matrix_tmp11[r] + distance_matrix_tmp12[r]
+                    distance_matrix_tmp.append(deepcopy(list_tmp))
+                for r in range(len(distance_matrix_tmp22)):
+                    list_tmp = distance_matrix_tmp21[r] + distance_matrix_tmp22[r]
+                    distance_matrix_tmp.append(deepcopy(list_tmp))
+
+            # ostateczne zapisanie macierzy
+            distance_matrixes.append(deepcopy(distance_matrix_tmp))
             cost_matrix_tmp = [[inf] * size for _ in range(size)]
             cost_matrixes.append(deepcopy(cost_matrix_tmp))
 

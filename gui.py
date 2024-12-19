@@ -226,10 +226,10 @@ class TaskTab(QWidget):
         self.parent.event_ids = []
         self.parent.tasks_obtained = False
         self.parent.tasks = []
-        self.parent.T_begin = None
-        self.parent.T_end = None
-        self.parent.modes = []
-        self.parent.transit_modes = []
+        #self.parent.T_begin = None
+        #self.parent.T_end = None
+        #self.parent.modes = []
+        #self.parent.transit_modes = []
         dlg = DialogWindow("Gotowe!", "Wylogowanie zakończone sukcesem. Dane zostały usunięte.")
         dlg.exec()
 
@@ -800,6 +800,10 @@ class ResultTab(QWidget):
         self.plot_layout = QVBoxLayout()  # layout na wykres
         self.sc = MplCanvas(self, width=5, height=4, dpi=100)
         self.sc.axes.plot([], [])
+        self.sc.axes.set_xlabel("Iteracja")
+        self.sc.axes.set_ylabel("F(S)")
+        self.sc.axes.xaxis.set_ticks([])
+        self.sc.axes.yaxis.set_ticks([])
         self.plot_layout.addWidget(self.sc)
 
         self.button_layout = QHBoxLayout()

@@ -164,7 +164,7 @@ def route_end_valid(task_inx, next_task_inx, matrixes, cost_matrixes, tasks, cur
 
 
 def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_time: BeautifulDate,
-                weights: List[float] = [0.3, 0.1, 0.6]):
+                weights: List[float] = [0.8, 0.2, 0]):
     """
     Funkcja znajdująca następne zadanie o lokalizacji najbliższej obecnej.
     :param task_inx: indeks zadania
@@ -408,9 +408,14 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                     break
                 if waiting_time != 0:
                     if current_task_inx == 0:       # jeśli jest to wyjazd z bazy - wyjazd jak najpóźniej
-                        travel_search_time = current_time + waiting_time * minutes
-                        # ... update travel time, póki co zostaje domyślnie poprzedni
-                        start_time = travel_search_time + travel_time * minutes
+                        # przewidywany moment rozpoczecia
+                        travel_search_time = current_time + waiting_time * minutes - travel_time * minutes
+                        # tutaj małe macierze szukające...
+                        matrixes_small, cost_matrixes_small = get_distance_cost_matrixes([depot.location, tasks[next_task_inx].location], travel_modes, transit_modes,
+                                                                             travel_search_time, finished)
+                        new_waiting_time = tasks[next_task_inx].get_waiting_time(travel_search_time)
+                        start_time = travel_search_time + new_waiting_time * minutes + matrixes_small[matrix_inx][0][1] * minutes
+                        tasks[next_task_inx].travel_cost = cost_matrixes[matrix_inx][0][1]
                     else:   # należy sprawdzić czy zamiast czekania lepiej wrócić
                         return_time, matrix_inx, return_cost = route_end_valid(current_task_inx, next_task_inx,
                                                                                matrixes, cost_matrixes, tasks,
