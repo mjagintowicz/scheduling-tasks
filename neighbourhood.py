@@ -3,7 +3,7 @@
 from beautiful_date import *
 from model_params import Task, Route, set_idle_time
 from typing import List, Dict
-from map_functions import get_distance_cost_matrixes
+from map_functions import get_distance_cost_matrixes, get_distance_cost_matrixes_updated
 from copy import deepcopy
 from init_heuristic import get_all_travel_modes
 from random import choice, randint
@@ -89,7 +89,9 @@ def fix_route(route: Route, current_inx: int, travel_modes: List[str], transit_m
                 return None
             # jeśli można poczekać w bazie to czekam w bazie na otwarcie i dla tego czasu sprawdzam dojazdy
             opening_time = route_tmp.tasks[i].end_date_time - route_tmp.idle_time * minutes + waiting_time * minutes
-            matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, opening_time)
+            matrixes, cost_matrixes = get_distance_cost_matrixes_updated([route_tmp.tasks[i].location],
+                                                                         [route_tmp.tasks[i + 1].location],
+                                                                         travel_modes, transit_modes, opening_time)
         else:
             if route_tmp.tasks[i].travel_method == 'driving':
                 car_enabled = True
@@ -103,13 +105,15 @@ def fix_route(route: Route, current_inx: int, travel_modes: List[str], transit_m
                 car_enabled = False
                 bike_enabled = False
                 others_enabled = True
-            matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
-                                                                 route_tmp.tasks[i].end_date_time,
-                                                                 car_enabled=car_enabled, bike_enabled=bike_enabled,
-                                                                 others_enabled=others_enabled)
+            matrixes, cost_matrixes = get_distance_cost_matrixes_updated([route_tmp.tasks[i].location],
+                                                                         [route_tmp.tasks[i + 1].location],
+                                                                         travel_modes, transit_modes,
+                                                                         route_tmp.tasks[i].end_date_time,
+                                                                         car_enabled=car_enabled, bike_enabled=bike_enabled,
+                                                                         others_enabled=others_enabled)
         distances = []
         for matrix in matrixes:  # uzyskanie odległości z macierzy
-            distance = matrix[0][1]
+            distance = matrix[0][0]
             distances.append(distance)
         # wybór najlepszego z indeksem odpowiedniej metody transportu
         travel_time = min(distances)  # uwaga, trzeba pilnować, żeby nie był inf
@@ -135,7 +139,7 @@ def fix_route(route: Route, current_inx: int, travel_modes: List[str], transit_m
 
         # aktualizacja parametrów transportu
         route_tmp.tasks[i + 1].set_travel_parameters(all_modes[matrix_inx], travel_time,
-                                                     cost_matrixes[matrix_inx][0][1])
+                                                     cost_matrixes[matrix_inx][0][0])
 
     return route_tmp
 
@@ -182,7 +186,9 @@ def find_valid_insertion(route: Route, lonely_task: Task, travel_modes: List[str
                 continue
             # jeśli można poczekać w bazie, to czekam w bazie na otwarcie i dla tego czasu sprawdzam dojazdy
             opening_time = route_tmp.tasks[i].end_date_time - route_tmp.idle_time * minutes + waiting_time * minutes
-            matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, opening_time)
+            matrixes, cost_matrixes = get_distance_cost_matrixes_updated([route_tmp.tasks[i].location],
+                                                                         [lonely_task.location], travel_modes,
+                                                                         transit_modes, opening_time)
         else:
             if route_tmp.tasks[i].travel_method == 'driving':
                 car_enabled = True
@@ -196,13 +202,14 @@ def find_valid_insertion(route: Route, lonely_task: Task, travel_modes: List[str
                 car_enabled = False
                 bike_enabled = False
                 others_enabled = True
-            matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
-                                                                 route_tmp.tasks[i].end_date_time,
-                                                                 car_enabled=car_enabled, bike_enabled=bike_enabled,
-                                                                 others_enabled=others_enabled)
+            matrixes, cost_matrixes = get_distance_cost_matrixes_updated([route_tmp.tasks[i].location],
+                                                                         [lonely_task.location], travel_modes,
+                                                                         transit_modes, route_tmp.tasks[i].end_date_time,
+                                                                         car_enabled=car_enabled, bike_enabled=bike_enabled,
+                                                                         others_enabled=others_enabled)
         distances = []
         for matrix in matrixes:  # uzyskanie odległości z macierzy
-            distance = matrix[0][1]
+            distance = matrix[0][0]
             distances.append(distance)
         travel_time = min(distances)
 
@@ -220,7 +227,7 @@ def find_valid_insertion(route: Route, lonely_task: Task, travel_modes: List[str
         start_time = arrival_time + waiting_time * minutes
         end_time = start_time + lonely_task.duration * minutes
         lonely_task.set_start_end_date_time(start_time, end_time)
-        lonely_task.set_travel_parameters(all_modes[matrix_inx], travel_time, cost_matrixes[matrix_inx][0][1])
+        lonely_task.set_travel_parameters(all_modes[matrix_inx], travel_time, cost_matrixes[matrix_inx][0][0])
         route_tmp.tasks.insert(i + 1, lonely_task)  # wstawienie do drogi tmp
 
         # sprawdzenie, czy wstawienie jest dopuszczalne (fix analogicznie jak na początku)
@@ -259,7 +266,9 @@ def single_insertion(route: Route, lonely_task: Task, insertion_inx: int, travel
             return None
         opening_time = route_tmp.tasks[insertion_inx].end_date_time - route_tmp.idle_time * minutes + \
                        waiting_time * minutes
-        matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, opening_time)
+        matrixes, cost_matrixes = get_distance_cost_matrixes_updated([route_tmp.tasks[insertion_inx].location],
+                                                                     [lonely_task.location], travel_modes,
+                                                                     transit_modes, opening_time)
     else:
         if route_tmp.tasks[insertion_inx].travel_method == 'driving':
             car_enabled = True
@@ -273,13 +282,14 @@ def single_insertion(route: Route, lonely_task: Task, insertion_inx: int, travel
             car_enabled = False
             bike_enabled = False
             others_enabled = True
-        matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes,
-                                                             route_tmp.tasks[insertion_inx].end_date_time,
-                                                             car_enabled=car_enabled, bike_enabled=bike_enabled,
-                                                             others_enabled=others_enabled)
+        matrixes, cost_matrixes = get_distance_cost_matrixes_updated([route_tmp.tasks[insertion_inx].location],
+                                                                     [lonely_task.location], travel_modes, transit_modes,
+                                                                     route_tmp.tasks[insertion_inx].end_date_time,
+                                                                     car_enabled=car_enabled, bike_enabled=bike_enabled,
+                                                                     others_enabled=others_enabled)
     distances = []
     for matrix in matrixes:  # uzyskanie odległości z macierzy
-        distance = matrix[0][1]
+        distance = matrix[0][0]
         distances.append(distance)
     travel_time = min(distances)
 
@@ -295,7 +305,7 @@ def single_insertion(route: Route, lonely_task: Task, insertion_inx: int, travel
     start_time = arrival_time + waiting_time * minutes
     end_time = start_time + lonely_task.duration * minutes
     lonely_task.set_start_end_date_time(start_time, end_time)
-    lonely_task.set_travel_parameters(all_modes[matrix_inx], travel_time, cost_matrixes[matrix_inx][0][1])
+    lonely_task.set_travel_parameters(all_modes[matrix_inx], travel_time, cost_matrixes[matrix_inx][0][0])
 
     route_tmp.tasks.insert(insertion_inx + 1, lonely_task)
     route_tmp = fix_route(route_tmp, insertion_inx, travel_modes, transit_modes)
@@ -459,32 +469,47 @@ def generate_short_route(depot: Task, task: Task, current_time: BeautifulDate, t
     last_stop = deepcopy(depot)
     all_modes = get_all_travel_modes(travel_modes, transit_modes)
     locations = [last_stop.location, task.location]
-    matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time)
+    matrixes, cost_matrixes = get_distance_cost_matrixes_updated([last_stop.location], [task.location], travel_modes,
+                                                                 transit_modes, current_time)
     distances = []
     for matrix in matrixes:
-        distances.append(matrix[0][1])
+        distances.append(matrix[0][0])
     min_distance = min(distances)
     min_inx = distances.index(min_distance)
 
     arrival_time = current_time + min_distance * minutes
     end_time = arrival_time + task.duration * minutes
     task.set_start_end_date_time(arrival_time, end_time)
-    task.set_travel_parameters(all_modes[min_inx], min_distance, cost_matrixes[min_inx][0][1])
+    task.set_travel_parameters(all_modes[min_inx], min_distance, cost_matrixes[min_inx][0][0])
     depot.end_date_time = current_time
 
     short_route = [depot, task]
 
     # droga powrotna
     current_time = end_time
-    matrixes, cost_matrixes = get_distance_cost_matrixes(locations, travel_modes, transit_modes, current_time)
+    if task.travel_method == 'driving':
+        car_enabled = True
+        bike_enabled = False
+        others_enabled = False
+    elif task.travel_method == 'bicycling':
+        car_enabled = False
+        bike_enabled = True
+        others_enabled = False
+    else:
+        car_enabled = False
+        bike_enabled = False
+        others_enabled = True
+    matrixes, cost_matrixes = get_distance_cost_matrixes_updated([task.location], [last_stop.location], travel_modes,
+                                                                 transit_modes, current_time, car_enabled=car_enabled,
+                                                                 bike_enabled=bike_enabled, others_enabled=others_enabled)
     distances = []
     for matrix in matrixes:
-        distances.append(matrix[1][0])
+        distances.append(matrix[0][0])
     min_distance = min(distances)
     min_inx = distances.index(min_distance)
 
     last_stop.start_date_time = current_time + min_distance * minutes
-    task.set_travel_parameters(all_modes[min_inx], min_distance, cost_matrixes[min_inx][0][1])
+    task.set_travel_parameters(all_modes[min_inx], min_distance, cost_matrixes[min_inx][0][0])
     short_route.append(last_stop)
 
     full_short_route = Route(depot.end_date_time, short_route)

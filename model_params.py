@@ -129,7 +129,7 @@ class Task:
 
         # sprawdzenie czy dany dzień jest w oknie czasowym
         # sprawdzenie dnia
-        if date_time < self.window_left:        # obecny czas jest przed otwarciem okna czasowego
+        if date_time <= self.window_left:        # obecny czas jest przed otwarciem okna czasowego
             date_time_tmp = (D @ date_time.day/date_time.month/date_time.year)[00:00]
             window_left_tmp = (D @ self.window_left.day/self.window_left.month/self.window_right.year)[00:00]
             if date_time_tmp != window_left_tmp:    # jeśli okno nie otworzy się obecnego dnia
