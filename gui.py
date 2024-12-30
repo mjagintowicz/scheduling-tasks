@@ -787,6 +787,9 @@ class ParamTab(QWidget):
         elif not self.weights_sum != 100:
             dlg = DialogWindow("Błąd!", "Suma wag musi wynosić 100%.")
             dlg.exec()
+        elif not key_active:
+            dlg = DialogWindow("BŁĄD!", "KLUCZ API NIEAKTYWNY!")
+            dlg.exec()
         else:
             depot = create_depot(self.depot_location.text(), self.parent.T_begin, self.parent.T_end)
             self.parent.tasks.insert(0, depot)
