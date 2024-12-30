@@ -156,9 +156,16 @@ class Task:
             tmp_time = datetime.combine(datetime.today(), current_time) + timedelta(minutes=self.duration)
             current_time_plus = time(hour=tmp_time.hour, minute=tmp_time.minute)
 
+            date_after_duration = date_time + self.duration * minutes
+            date_after_duration = (D @ date_after_duration.day/date_after_duration.month/date_after_duration.year)[00:00]
+
             # jeśli jest czynne - sprawdzenie czy godzina jest w oknie czasowym
             if closing_time > opening_time:  # zamknięcie tego samego dnia
-                if current_time_plus > closing_time:
+                # jeśli zadanie skończy się innego dnia
+                if date_after_duration > (D @ date_time.day/date_time.month/date_time.year)[00:00]:
+                    return False
+                # jeśli zadanie skończy się tego samego dnia
+                elif current_time_plus > closing_time:
                     return False
 
             if closing_time < opening_time:  # zamknięcie już w następnej dobie
@@ -197,7 +204,7 @@ class Task:
             return 0
 
 
-# klasa reprezentująca kurs, żeby nie robić już na słownikach
+# KLASA REPREZENTUJĄCA KURS
 class Route:
 
     def __init__(self, start_date: BeautifulDate, tasks: List[Task]):
@@ -221,7 +228,8 @@ class Route:
         :param weights:
         :return:
         """
-
+        self.depot_fix()
+        self.objective = 0
         if weights is None:
             weights = [0.6, 0, 0.4]
 
@@ -245,6 +253,10 @@ class Route:
                                       self.tasks[inx].travel_cost + weights[2] * waiting_time
 
     def depot_fix(self):
+        """
+        Ustawienie czasu zakończenia oczekiwania w bazie.
+        :return:
+        """
         self.tasks[0].end_date_time = self.tasks[1].start_date_time - self.tasks[1].travel_time * minutes
         self.start_date_og = self.tasks[0].end_date_time
 
@@ -252,9 +264,9 @@ class Route:
         s = ""
         for i in range(1, len(self.tasks)):
             if i == len(self.tasks) - 1:
-                s += f"{i}. planowana godzina powrotu: {self.tasks[i].end_date_time}; transport: {self.tasks[i].travel_method}\n"
+                s += f"{i}. planowana data i godzina powrotu: {self.tasks[i].start_date_time}; transport: {self.tasks[i].travel_method}\n"
             else:
-                s += f"{i}. {self.tasks[i].name} o godzinie {self.tasks[i].end_date_time}; transport: {self.tasks[i].travel_method}\n"
+                s += f"{i}. {self.tasks[i].name}, data i godzina: {self.tasks[i].start_date_time}; transport: {self.tasks[i].travel_method}\n"
         return s
 
 

@@ -92,8 +92,23 @@ def task_2_event(task: Task) -> Event:
     :param task: zadanie
     :return: zdarzenie (event)
     """
+    if task.travel_method == 'walking':
+        travel_mode = 'pieszo'
+    elif task.travel_method == 'driving':
+        travel_mode = 'samochodem.'
+    elif task.travel_method == 'bus':
+        travel_mode = 'autobusem'
+    elif task.travel_method == 'tram':
+        travel_mode = 'tramwajem'
+    elif task.travel_method == 'rail':
+        travel_mode = 'koleją'
+    else:
+        travel_mode = 'rowerem'
 
-    event = Event(summary=task.name, start=task.start_date_time, end=task.end_date_time, location=task.location)
+    desc = f'Transport: {travel_mode} {task.travel_time} min'
+
+    event = Event(summary=task.name, start=task.start_date_time, end=task.end_date_time, location=task.location,
+                  description=desc)
     return event
 
 
@@ -139,9 +154,6 @@ def add_task_to_calendar(task: Task, calendar_id: str = 'primary') -> bool:
     if not gc:
         return False
 
-    # verify location
-    # ...
-
     event = task_2_event(task)
     gc.add_event(event)
 
@@ -168,19 +180,26 @@ def log_out():
     Funkcja do wylogowywania.
     :return: NIC
     """
-    os.remove("token.pickle")
+    file_path = "token.pickle"
+    if os.path.exists(file_path):
+        os.remove(file_path)
 
 
-def add_all_tasks(solution: List[Route], calendar_id: str = 'primary'):
+def add_all_tasks(solution: List[Route], event_ids: List[str] = [], calendar_id: str = 'primary'):
     """
     Dodawanie uporządkowanych zadań do kalendarza.
+    :param event_ids: lista id oryginalnych zdarzeń
     :param solution: rozwiązanie
     :param calendar_id: kalendarz
     :return: NIC
     """
     gc = access_calendar(calendar_id)
 
-    for route in solution:
+    if event_ids:
+        for id_ in event_ids:       # usuniecie starych zdarzeń
+            gc.delete_event(id_)
+
+    for route in solution:      # dodanie nowych
         for i in range(1, len(route.tasks)-1):
             add_task_to_calendar(route.tasks[i], calendar_id)
 

@@ -1,24 +1,48 @@
 from PyQt6.QtWidgets import QMainWindow, QPushButton, QHBoxLayout, QWidget, QDateEdit, QVBoxLayout, QLabel, QTimeEdit, \
     QTabWidget, QDialog, QDialogButtonBox, QGridLayout, QCheckBox, QLineEdit, QSpinBox, QDoubleSpinBox, QTableWidget,\
     QTableWidgetItem
-from PyQt6.QtCore import Qt, QDate, QTime, QTimer, pyqtSignal, QObject
-from PyQt6.QtGui import QFont
-from datetime import timedelta
+from PyQt6.QtCore import Qt
+
 import matplotlib
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+import dill
+import os
+from random import choice
 
 from calendar_functions import *
-from model_params import Task, Route
-from init_heuristic import initial_solution, create_depot
+from init_heuristic import create_depot
 from map_functions import *
 from sa import simmulated_annealing
 
 matplotlib.use('QtAgg')
 
+key_active = False
+
+
+# !!! wczytanie losowego rozwiązania z wcześniej wygenerowanych
+def load_random_solution(folder_path: str = 'examples'):
+    """
+    Wczytywanie losowego rozwiazania z wcześniej wygenerowanych.
+    :param folder_path: folder z rozwiązaniami
+    :return:
+    """
+    files = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
+    pkl_files = [f for f in files if f.endswith('.pkl')]
+    selected_file = choice(pkl_files)
+    file_path = os.path.join(folder_path, selected_file)
+    with open(file_path, 'rb') as f:
+        result = dill.load(f)
+        test_sol = result['solution']
+        test_obj = result['obj']
+    return test_sol, test_obj
+
+
+if not key_active:
+    test_sol, test_obj = load_random_solution()      # wczytywanie, bo klucz api jest niedostępny
+
 
 # OKNO STARTOWE
-
 class StartWindow(QMainWindow):
 
     def __init__(self):
@@ -41,8 +65,12 @@ class StartWindow(QMainWindow):
         self.T_end = None
         self.modes = []  # informacje na temat wybranych środków transportu
         self.transit_modes = []
-        self.solution = []
-        self.objectives = []
+        if not key_active:
+            self.solution = test_sol
+            self.objectives = test_obj
+        else:
+            self.solution = []
+            self.objectives = []
 
         self.temp_0 = None
         self.temp_end = None
@@ -72,7 +100,6 @@ class StartWindow(QMainWindow):
 
 
 # WCZYTYWANIE DANYCH
-
 class TaskTab(QWidget):
 
     def __init__(self, parent: StartWindow):
@@ -226,16 +253,13 @@ class TaskTab(QWidget):
         self.parent.event_ids = []
         self.parent.tasks_obtained = False
         self.parent.tasks = []
-        #self.parent.T_begin = None
-        #self.parent.T_end = None
-        #self.parent.modes = []
-        #self.parent.transit_modes = []
+        if not key_active:   # załaduj losowo inne rozwiązanie, jeśli nie ma dostępu do api
+            self.parent.solution, self.parent.objectives = load_random_solution()
         dlg = DialogWindow("Gotowe!", "Wylogowanie zakończone sukcesem. Dane zostały usunięte.")
         dlg.exec()
 
 
 # OKNO DIALOGOWE
-
 class DialogWindow(QDialog):
 
     def __init__(self, title, message):
@@ -257,7 +281,6 @@ class DialogWindow(QDialog):
 
 
 # OKNO Z DOSTĘPNYMI ZADANIAMI
-
 class TaskWindow(QDialog):
 
     def __init__(self, parent: StartWindow):
@@ -442,6 +465,7 @@ class ParamTab(QWidget):
         self.temp_begin_spin.setRange(0, 100000)
         self.temp_begin_spin.setValue(100)
         self.temp_begin_spin.setFixedSize(80, 30)
+        self.parent.temp_0 = self.temp_begin_spin.value()
         self.temp_begin_spin.valueChanged.connect(lambda: self.set_temp_0())
         self.temp_begin_layout.addWidget(self.temp_begin_label)
         self.temp_begin_layout.addWidget(self.temp_begin_spin)
@@ -450,9 +474,10 @@ class ParamTab(QWidget):
         self.temp_end_label = QLabel("Temperatura końcowa:")
         self.temp_end_label.setFixedSize(200, 30)
         self.temp_end_spin = QDoubleSpinBox()
-        self.temp_end_spin.setRange(0, 100000)
-        self.temp_end_spin.setValue(0.0001)
+        self.temp_end_spin.setRange(0.000001, 100000)
+        self.temp_end_spin.setValue(0.1)
         self.temp_end_spin.setFixedSize(80, 30)
+        self.parent.temp_end = self.temp_end_spin.value()
         self.temp_end_spin.valueChanged.connect(lambda: self.set_temp_end())
         self.temp_end_layout.addWidget(self.temp_end_label)
         self.temp_end_layout.addWidget(self.temp_end_spin)
@@ -462,8 +487,9 @@ class ParamTab(QWidget):
         self.alpha_label.setFixedSize(200, 30)
         self.alpha_spin = QDoubleSpinBox()
         self.alpha_spin.setRange(0, 1)
-        self.alpha_spin.setValue(0.1)
+        self.alpha_spin.setValue(0.65)
         self.alpha_spin.setFixedSize(80, 30)
+        self.parent.alpha = self.alpha_spin.value()
         self.alpha_spin.valueChanged.connect(lambda: self.set_alpha())
         self.alpha_layout.addWidget(self.alpha_label)
         self.alpha_layout.addWidget(self.alpha_spin)
@@ -474,6 +500,7 @@ class ParamTab(QWidget):
         self.series_spin = QSpinBox()
         self.series_spin.setFixedSize(80, 30)
         self.series_spin.setRange(1, 100)
+        self.parent.series = self.series_spin.value()
         self.series_spin.valueChanged.connect(lambda: self.set_series_num())
         self.series_layout.addWidget(self.series_label)
         self.series_layout.addWidget(self.series_spin)
@@ -534,6 +561,10 @@ class ParamTab(QWidget):
         self.operator4_spin.valueChanged.connect(lambda: self.set_neighbourhood_probabilities())
         self.operator4_layout.addWidget(self.operator4_spin)
 
+        self.parent.neighbourhood_prob = [self.operator1_spin.value(), self.operator2_spin.value(),
+                                          self.operator3_spin.value(), self.operator4_spin.value()]
+        self.weights_sum = sum([self.operator1_spin.value(), self.operator2_spin.value(), self.operator3_spin.value(),
+                                self.operator4_spin.value()])
         self.neighbourhood_layout.addWidget(self.neighbourhood_label)
         self.neighbourhood_layout.addLayout(self.operator1_layout)
         self.neighbourhood_layout.addLayout(self.operator2_layout)
@@ -597,6 +628,9 @@ class ParamTab(QWidget):
         self.weight3_spin.valueChanged.connect(lambda: self.set_weights())
         self.weight3_layout.addWidget(self.weight3_label)
         self.weight3_layout.addWidget(self.weight3_spin)
+
+        self.parent.weights = [self.weight1_spin.value(), self.weight2_spin.value(), self.weight3_spin.value()]
+        self.probabilities_sum = sum([self.weight1_spin.value(), self.weight2_spin.value(), self.weight3_spin.value()])
 
         self.weights_layout.addLayout(self.weight1_layout)
         self.weights_layout.addLayout(self.weight2_layout)
@@ -738,7 +772,7 @@ class ParamTab(QWidget):
         elif not self.parent.modes:
             dlg = DialogWindow("Błąd!", "Wybierz co najmniej jedną metodę podróży.")
             dlg.exec()
-        elif self.parent.temp_0 >= self.parent.temp_end:
+        elif self.parent.temp_0 <= self.parent.temp_end:
             dlg = DialogWindow("Błąd!", "Podaj poprawne wartości temperatury.")
             dlg.exec()
         elif self.parent.alpha >= 1 or self.parent.alpha <= 0:
@@ -764,8 +798,12 @@ class ParamTab(QWidget):
                                                                                 self.parent.neighbourhood_prob,
                                                                                 self.parent.weights, self.parent.modes,
                                                                                 self.parent.transit_modes)
+            if self.parent.solution is None:
+                dlg = DialogWindow("Błąd!", "Nie można wygenerować rozwiązania początkowego.")
+                dlg.exec()
 
 
+# klasa do tworzenia pola z wykresem
 class MplCanvas(FigureCanvasQTAgg):
 
     def __init__(self, parent=None, width=5, height=4, dpi=100):
@@ -774,6 +812,7 @@ class MplCanvas(FigureCanvasQTAgg):
         super().__init__(fig)
 
 
+# WIZUALIZACJA ROZWIĄZANIA
 class ResultTab(QWidget):
 
     def __init__(self, parent: StartWindow):
@@ -852,16 +891,18 @@ class ResultTab(QWidget):
         self.table_main.setItem(0, 1, QTableWidgetItem("Nazwa zadania"))
         self.table_main.setItem(0, 2, QTableWidgetItem("Sposób podróży"))
 
+        row = 1
         for i in range(len(self.parent.solution)):
             for j in range(1, len(self.parent.solution[i].tasks)):
                 if self.parent.solution[i].tasks[j].name == "Dom":
-                    self.table_main.setItem(j, 0, QTableWidgetItem(" "))
-                    self.table_main.setItem(j, 1, QTableWidgetItem("POWRÓT"))
-                    self.table_main.setItem(j, 2, QTableWidgetItem(self.parent.solution[i].tasks[j].travel_method))
+                    self.table_main.setItem(row, 0, QTableWidgetItem(" "))
+                    self.table_main.setItem(row, 1, QTableWidgetItem("POWRÓT"))
+                    self.table_main.setItem(row, 2, QTableWidgetItem(self.parent.solution[i].tasks[j].travel_method))
                 else:
-                    self.table_main.setItem(j, 0, QTableWidgetItem(str(self.parent.solution[i].tasks[j].start_date_time)))
-                    self.table_main.setItem(j, 1, QTableWidgetItem(self.parent.solution[i].tasks[j].name))
-                    self.table_main.setItem(j, 2, QTableWidgetItem(self.parent.solution[i].tasks[j].travel_method))
+                    self.table_main.setItem(row, 0, QTableWidgetItem(str(self.parent.solution[i].tasks[j].start_date_time)))
+                    self.table_main.setItem(row, 1, QTableWidgetItem(self.parent.solution[i].tasks[j].name))
+                    self.table_main.setItem(row, 2, QTableWidgetItem(self.parent.solution[i].tasks[j].travel_method))
+                row += 1
 
         self.table_layout.addWidget(self.table_main)
 
@@ -873,7 +914,7 @@ class ResultTab(QWidget):
         self.plot_layout.removeWidget(self.sc)
         self.sc = MplCanvas(self, width=5, height=4, dpi=100)
         iter_list = [i for i in range(1, len(self.parent.objectives)+1)]
-        self.sc.axes.plot(iter_list, self.parent.objectives)
+        self.sc.axes.plot(iter_list, self.parent.objectives, color='hotpink')
         self.sc.axes.set_xlabel("Iteracja")
         self.sc.axes.set_ylabel("Wartość funkcji celu przetwarzanego rozwiązania")
         self.sc.axes.set_title("Wykres funkcji celu w kolejnych iteracjach")
@@ -899,7 +940,13 @@ class ResultTab(QWidget):
         if not self.parent.solution:
             dlg = DialogWindow("Błąd!", "Brak rozwiązania.")
             dlg.exec()
+        elif not self.parent.event_ids:
+            dlg = DialogWindow("Uwaga!", "Zadania z rozwiązania mogą nachodzć na inne.")
+            dlg.exec()
+            add_all_tasks(self.parent.solution, self.parent.event_ids)
+            dlg = DialogWindow("Sukces!", "Zadania zostały dodane!")
+            dlg.exec()
         else:
-            add_all_tasks(self.parent.solution)
+            add_all_tasks(self.parent.solution, self.parent.event_ids)
             dlg = DialogWindow("Sukces!", "Zadania zostały dodane!")
             dlg.exec()

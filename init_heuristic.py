@@ -3,7 +3,7 @@
 from beautiful_date import *
 from model_params import Task, Route, set_idle_time
 from typing import List, Dict
-from map_functions import get_distance_cost_matrixes, get_distance_cost_matrixes_updated
+from map_functions import get_distance_cost_matrixes, get_distance_cost_matrixes
 from copy import deepcopy
 
 inf = float('inf')
@@ -108,8 +108,8 @@ def route_end_valid(task_inx, next_task_inx, matrixes, cost_matrixes, tasks, cur
                 travel_mode = [all_modes[matrix_inx]]
                 transit_mode = []
             # jako że to jest już wyznaczenie po powrocie, to trzeba wyznaczyć nowe zaktualizowane macierze (wszystkie metody są potencjalnie możliwe)
-            matrixes_tmp, cost_matrixes_tmp = get_distance_cost_matrixes_updated([tasks[0].location], locations_tmp, travel_mode, transit_mode,
-                                                                                 current_time)
+            matrixes_tmp, cost_matrixes_tmp = get_distance_cost_matrixes([tasks[0].location], locations_tmp, travel_mode, transit_mode,
+                                                                         current_time)
             # wyczyszczenie odległości z tych już wykonanych
             for m in range(len(matrixes_tmp)):
                 for row in range(len(matrixes_tmp)):
@@ -208,9 +208,12 @@ def get_nearest(task_inx: int, matrix: List[List], tasks: List[Task], current_ti
             current_time_plus = current_time + distance * minutes + tasks[inx].duration * minutes
             urgency = tasks[inx].window_right - current_time_plus  # pilność zadania
             urgency = urgency.total_seconds() / 60
-
-            result = weights[0] * distance + weights[1] * waiting_time + weights[2] * urgency
-            results.append(result)
+            if urgency < 0:
+                results.append(inf)
+                continue
+            else:
+                result = weights[0] * distance + weights[1] * waiting_time + weights[2] * urgency
+                results.append(result)
 
     best_result = min(results)
     next_task_inx = results.index(best_result)  # indeks najbliższego
@@ -371,9 +374,9 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
         while True:  # tworzenie konkretnego kursu
             # ustawienie warunków car/bike/others
             if current_task_inx == 0:   # na początku kursu - wszystkie są domyślnie true
-                matrixes, cost_matrixes = get_distance_cost_matrixes_updated([tasks[current_task_inx].location],
-                                                                             locations, travel_modes, transit_modes,
-                                                                             current_time)
+                matrixes, cost_matrixes = get_distance_cost_matrixes([tasks[current_task_inx].location],
+                                                                     locations, travel_modes, transit_modes,
+                                                                     current_time)
             else:
                 last_inx = finished[-1]     # indeks ostatniego zadania wykonanego w kursie
                 if tasks[last_inx].travel_method == 'driving':
@@ -388,10 +391,10 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                     car_enabled = False
                     bike_enabled = False
                     others_enabled = True
-                matrixes, cost_matrixes = get_distance_cost_matrixes_updated([tasks[current_task_inx].location],
-                                                                             locations, travel_modes, transit_modes,
-                                                                             current_time, car_enabled, bike_enabled,
-                                                                             others_enabled)
+                matrixes, cost_matrixes = get_distance_cost_matrixes([tasks[current_task_inx].location],
+                                                                     locations, travel_modes, transit_modes,
+                                                                     current_time, car_enabled, bike_enabled,
+                                                                     others_enabled)
             # stare dobre ahh czyszczenie - rachunek od googla is coming NO I PRZYSZEDL BYE
             for m in range(len(matrixes)):
                 for row in range(len(matrixes[0])):
@@ -452,8 +455,8 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                         # przewidywany moment rozpoczecia
                         travel_search_time = current_time + waiting_time * minutes - travel_time * minutes
                         # tutaj małe macierze szukające... TO BEDZIE MACIERZ 1 NA 1
-                        matrixes_small, cost_matrixes_small = get_distance_cost_matrixes_updated([depot.location], [tasks[next_task_inx].location], travel_modes, transit_modes,
-                                                                             travel_search_time)
+                        matrixes_small, cost_matrixes_small = get_distance_cost_matrixes([depot.location], [tasks[next_task_inx].location], travel_modes, transit_modes,
+                                                                                         travel_search_time)
                         arrival_time = travel_search_time + matrixes_small[matrix_inx][0][0] * minutes
                         new_waiting_time = tasks[next_task_inx].get_waiting_time(arrival_time)
                         start_time = arrival_time + new_waiting_time * minutes
@@ -497,7 +500,7 @@ def initial_solution(T_begin: BeautifulDate, T_end: BeautifulDate, tasks: List[T
                     car_enabled = False
                     bike_enabled = False
                     others_enabled = True
-                matrixes_small, cost_matrixes_small = get_distance_cost_matrixes_updated([
+                matrixes_small, cost_matrixes_small = get_distance_cost_matrixes([
                     tasks[current_task_inx].location], [depot.location], travel_modes, transit_modes, current_time,
                                                                                          car_enabled=car_enabled,
                                                                                          bike_enabled=bike_enabled,
@@ -545,19 +548,3 @@ def dict_2_route(solution: Dict[BeautifulDate, List[Task]]):
 
     return new_solution
 
-
-def display_solution(solution: Dict[BeautifulDate, List[Task]]):
-    """
-    Funkcja wypisująca rozwiązanie w konsoli.
-    :param solution: rozwiązanie
-    :return: NIC
-    """
-
-    for start_date, route in solution.items():
-        print(f'***** {(D @ start_date.day/start_date.month/start_date.year)} *****')
-        for i in range(1, len(route)):
-            if i != len(route) - 1:
-                print(f'{i}: {route[i].name}, o godzinie: {route[i].start_date_time}; transport: {route[i].travel_method}')
-            else:
-                print(f'Planowana godzina powrotu: {route[i].start_date_time}; transport: {route[i].travel_method}')
-        print(f'\n')
