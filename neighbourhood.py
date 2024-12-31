@@ -566,7 +566,7 @@ def shift_from_the_most_busy_day(solution: List[Route], T_begin: BeautifulDate, 
     route_tmp, lonely_task, route_inx = pick_the_last_task_daily(solution_tmp, most_busy_day, travel_modes, transit_modes)
     if route_tmp is not None:
         route_tmp.set_objective(weights)
-        solution_tmp[route_inx] = route_tmp     # od razy podmiana
+        solution_tmp[route_inx] = route_tmp
     else:
         del solution_tmp[route_inx]
     solution_tmp.sort(key=lambda x: x.start_date_og)
@@ -575,8 +575,8 @@ def shift_from_the_most_busy_day(solution: List[Route], T_begin: BeautifulDate, 
     num_days = int(num_days)
 
     # wyznaczenie innego, losowego dnia
-    new_day = current_date
-    while current_date == new_day:
+    new_day = most_busy_day
+    while most_busy_day == new_day:
         delta_days = randint(1, num_days)
         if delta_days == 0:
             new_day = begin_date + delta_days * day
@@ -587,11 +587,15 @@ def shift_from_the_most_busy_day(solution: List[Route], T_begin: BeautifulDate, 
     insertion = False
     short_route = None
     for route in solution_tmp:
+        route.depot_fix()
         # jeśli ten dzień już coś ma -> wstawić do kursu (pierwszego możliwego)
         if new_day == route.start_date_only:
+            for task in route.tasks:
+                if task.name == lonely_task.name:
+                    continue
             feasible_insertions, objectives = find_valid_insertion(route, lonely_task, travel_modes, transit_modes,
                                                                    weights=weights)
-            if feasible_insertions:
+            if feasible_insertions and not insertion:
                 best = min(objectives)
                 best_inx = objectives.index(best)
                 best_inx = feasible_insertions[best_inx]
@@ -606,11 +610,10 @@ def shift_from_the_most_busy_day(solution: List[Route], T_begin: BeautifulDate, 
                     return solution  # jak się nie udało, to zakończ
             else:
                 return solution
-
         # w przypadku, gdy okazało się, że w wybranym dniu nic nie ma
-    if not insertion:
-        depot = deepcopy(solution_tmp[0].tasks[0])
-        short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
+        elif new_day < route.start_date_only and not insertion:
+            depot = deepcopy(solution_tmp[0].tasks[0])
+            short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
 
     if insertion:  # jeśli wstawienie się powiodło - podmiana kursu na skrócony
         solution_tmp.sort(key=lambda x: x.start_date_og)
@@ -666,7 +669,7 @@ def shift_from_the_least_busy_day(solution: List[Route], T_begin: BeautifulDate,
                                                                  transit_modes)
     if route_tmp is not None:
         route_tmp.set_objective(weights)
-        solution_tmp[route_inx] = route_tmp  # od razu podmiana
+        solution_tmp[route_inx] = route_tmp
     else:
         del solution_tmp[route_inx]
     solution_tmp.sort(key=lambda x: x.start_date_og)
@@ -675,23 +678,25 @@ def shift_from_the_least_busy_day(solution: List[Route], T_begin: BeautifulDate,
     num_days = int(num_days)
 
     # wyznaczenie innego, losowego dnia
-    new_day = current_date
-    while current_date == new_day:
+    new_day = least_busy_day
+    while least_busy_day == new_day:
         delta_days = randint(1, num_days)
         if delta_days == 0:
             new_day = begin_date + delta_days * day
         else:
             new_day = begin_date + delta_days * days
 
-    # dla tego dnia trzeba zrobić wstawienie
     insertion = False
     short_route = None
     for route in solution_tmp:
-        # jeśli ten dzień już coś ma -> wstawić do kursu (pierwszego możliwego)
+        route.depot_fix()
         if new_day == route.start_date_only:
+            for task in route.tasks:
+                if task.name == lonely_task.name:
+                    continue
             feasible_insertions, objectives = find_valid_insertion(route, lonely_task, travel_modes, transit_modes,
                                                                    weights=weights)
-            if feasible_insertions:
+            if feasible_insertions and not insertion:
                 best = min(objectives)
                 best_inx = objectives.index(best)
                 best_inx = feasible_insertions[best_inx]
@@ -703,21 +708,19 @@ def shift_from_the_least_busy_day(solution: List[Route], T_begin: BeautifulDate,
                     insertion = True
                     break
                 else:
-                    return solution  # jak się nie udało, to zakończ
+                    return solution
             else:
-                return solution
+                continue
+        elif new_day < route.start_date_only and not insertion:
+            depot = deepcopy(solution_tmp[0].tasks[0])
+            short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
 
-    # w przypadku, gdy okazało się, że w wybranym dniu nic nie ma
-    if not insertion:
-        depot = deepcopy(solution_tmp[0].tasks[0])
-        short_route = generate_short_route(depot, lonely_task, new_day, travel_modes, transit_modes)
-
-    if insertion:  # jeśli wstawienie się powiodło - podmiana kursu na skrócony
+    if insertion:
         solution_tmp.sort(key=lambda x: x.start_date_og)
         return solution_tmp
-    elif short_route is not None:  # jeśli został stworzony nowy kurs - podmiana i dodanie nowego kursu do rozwiązania
+    elif short_route is not None:
         short_route.set_objective(weights)
-        solution_tmp.append(short_route)  # dodaje całkowicie nowy dzień do rozwiązania
+        solution_tmp.append(short_route)
         solution.sort(key=lambda x: x.start_date_og)
         return solution_tmp
     else:
